@@ -1,0 +1,84 @@
+# Local .terraform directories
+**/.terraform/*
+
+# Terraform lockfile
+.terraform.lock.hcl
+
+# Terraform state files
+terraform.tfstate
+terraform.tfstate.*
+
+# Terraform variable files (may contain sensitive data)
+*.tfvars.json
+
+# Crash log files
+crash.log
+crash.*.log
+
+# Exclude all .tfvars files except the example
+*.auto.tfvars
+# terraform.tfvars  # Uncomment if you don't want to commit your customizations
+
+# Ignore override files as they are usually used for local development
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Ignore CLI configuration files
+.terraformrc
+terraform.rc
+
+# Ignore plan output files
+*.tfplan
+*.out
+
+# Ignore Terraform lock files
+**/.terraform.lock.hcl
+
+# Ignore Terragrunt cache directories
+**/.terragrunt-cache/
+
+# Ignore Terragrunt generated files
+**/backend.tf
+**/provider.tf
+**/.terragrunt-module-manifest
+
+# Ignore backup files
+*.backup
+
+# Ignore info files
+*.info
+
+# Ignore sensitive files
+*.pem
+*.key
+
+# Ignore macOS specific files
+.DS_Store
+*.DS_Store
+
+# Ignore Vagrant files
+.vagrant/
+
+# Ignore vim swap files
+*.swp
+*.swo
+*~
+
+# Sandbox harness
+db-pipeline-sandbox/.sandbox-env
+db-pipeline-sandbox/sandbox-build.log
+db-pipeline-sandbox/sandbox-key
+db-pipeline-sandbox/sandbox-key.pub
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+.pytest_cache/
+
+# Migration test outputs
+migration_test/logs/
+migration_test/reports/
