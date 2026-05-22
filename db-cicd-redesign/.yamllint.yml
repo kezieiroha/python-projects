@@ -1,0 +1,34 @@
+# .yamllint.yml
+# Kezie Iroha – YAML formatting config to complement ansible-lint
+# Docs: https://yamllint.readthedocs.io/en/stable/
+
+extends: default
+
+rules:
+  line-length:
+    max: 120 # Allow wider lines for readability
+    level: warning
+
+  trailing-spaces:
+    level: warning # Warn but don't fail
+
+  new-line-at-end-of-file:
+    level: warning # Prevents failure from cosmetic newline issues
+
+  indentation:
+    spaces: 2 # Standard Ansible style
+    indent-sequences: consistent
+    check-multi-line-strings: false
+
+  truthy:
+    level: warning # Allows yes/no, True/False if used consistently
+
+  comments:
+    require-starting-space: true
+    min-spaces-from-content: 1
+
+  document-start:
+    present: true
+    level: warning
+
+  empty-lines: disable
