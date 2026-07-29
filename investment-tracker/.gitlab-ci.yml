@@ -1,0 +1,48 @@
+# You can override the included template(s) by including variable overrides
+# SAST customization: https://docs.gitlab.com/user/application_security/sast/#available-cicd-variables
+# Secret Detection customization: https://docs.gitlab.com/user/application_security/secret_detection/pipeline/configure/
+# Dependency Scanning customization: https://docs.gitlab.com/user/application_security/dependency_scanning/dependency_scanning_sbom/#customizing-analyzer-behavior
+# Container Scanning customization: https://docs.gitlab.com/user/application_security/container_scanning/#customizing-analyzer-behavior
+# Note that environment variables can be set in several places
+# See https://docs.gitlab.com/ci/variables/#cicd-variable-precedence
+stages:
+- test
+- secret-detection
+
+unit_tests:
+  image: python:3.12-slim
+  stage: test
+  before_script:
+  - python -m pip install --upgrade pip
+  - python -m pip install -r requirements.txt
+  script:
+  - python -m compileall build_alert_levels.py modules workbook
+  - python -m pytest
+
+# The unit suite runs entirely offline, so it cannot catch a breaking yfinance
+# release. This job hits the real provider with three tickers and asserts that
+# prices and moving averages actually reach the workbook.
+#
+# Opt-in only: it needs egress to Yahoo Finance and depends on a third party, so
+# it must never gate an ordinary merge request. Trigger it manually after a
+# dependency bump, or attach it to a pipeline schedule.
+live_smoke:
+  image: python:3.12-slim
+  stage: test
+  when: manual
+  allow_failure: false
+  before_script:
+  - python -m pip install --upgrade pip
+  - python -m pip install -r requirements.txt
+  script:
+  - python tests/live_smoke.py
+
+sast:
+  stage: test
+include:
+- template: Security/SAST.gitlab-ci.yml
+- template: Security/Secret-Detection.gitlab-ci.yml
+variables:
+  SECRET_DETECTION_ENABLED: 'true'
+secret_detection:
+  stage: secret-detection

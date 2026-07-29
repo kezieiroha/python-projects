@@ -1,7 +1,0 @@
-# Optionally apply to other Unix-style scripts
-*.bash text eol=lf
-*.zsh text eol=lf
-
-# Prevent Git from auto-converting line endings on checkout (optional)
-* text=auto
-* text=auto eol=lf

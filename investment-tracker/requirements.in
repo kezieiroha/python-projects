@@ -1,4 +1,19 @@
-openpyxl>=3.1.5
-yfinance>=1.2.2
-pandas>=3.0.2
-idna>=3.15
+# SIPP / ISA Dashboard — direct dependencies (intent).
+#
+# Edit this file, then regenerate the pinned lock:
+#
+#     pip-compile requirements.in -o requirements.txt
+#
+# To pick up new upstream releases:
+#
+#     pip-compile --upgrade requirements.in -o requirements.txt
+#
+# Install from the lock, never from this file:
+#
+#     pip install -r requirements.txt
+
+openpyxl>=3.1.5     # Excel file generation
+yfinance>=1.5       # live prices, MAs, fundamentals, analyst data
+pandas>=3.0         # series/resampling used by the moving-average maths
+requests>=2.32      # Alpha Vantage OVERVIEW calls (optional feature, explicit dep)
+pytest>=8.0         # regression tests

@@ -1,0 +1,292 @@
+[
+  {
+    "ticker": "MSTR",
+    "macro_lo": 13.26,
+    "macro_hi": 543.0,
+    "current": 132.36,
+    "al1_display": "$340.64",
+    "status": "BELOW 78.6% ($126.62) — deepest value. GTC BUY @ $114.",
+    "bg": "FFCCCC",
+    "font_color": "880000"
+  },
+  {
+    "ticker": "COIN",
+    "macro_lo": 31.83,
+    "macro_hi": 444.65,
+    "current": 174.53,
+    "al1_display": "$286.95",
+    "status": "BELOW AL3 ($189.53) — back up truck. Exchange: GENIUS Act positive.",
+    "bg": "FFEBEE",
+    "font_color": "C62828"
+  },
+  {
+    "ticker": "CEG",
+    "macro_lo": 40.73,
+    "macro_hi": 411.68,
+    "current": 291.72,
+    "al1_display": "$269.98",
+    "status": "Above macro AL1 ($270.53) — wait for pullback.",
+    "bg": "F5F5F5",
+    "font_color": "555555"
+  },
+  {
+    "ticker": "TLN",
+    "macro_lo": 49.5,
+    "macro_hi": 451.28,
+    "current": 326.08,
+    "al1_display": "$297.80",
+    "status": "Above AL1 ($297.80). Amazon nuclear PPA. EXTREME LEVERAGE. Set alert at AL1.",
+    "bg": "E8F5E9",
+    "font_color": "2E7D32"
+  },
+  {
+    "ticker": "GEV",
+    "macro_lo": 118.56,
+    "macro_hi": 948.38,
+    "current": 991.12,
+    "al1_display": "$631.39",
+    "status": "Near ATH — above AL1 ($631.39). GE power/grid spin-off. Set alert at AL1.",
+    "bg": "F5F5F5",
+    "font_color": "555555"
+  },
+  {
+    "ticker": "XOM",
+    "macro_lo": 52.75,
+    "macro_hi": 171.23,
+    "current": 152.64,
+    "al1_display": "$125.97",
+    "status": "Near ATH — well above macro AL1 ($117.00). Wait.",
+    "bg": "F5F5F5",
+    "font_color": "555555"
+  },
+  {
+    "ticker": "COP",
+    "macro_lo": 61.71,
+    "macro_hi": 134.87,
+    "current": 123.62,
+    "al1_display": "$106.92",
+    "status": "AT ATH — wait for $107 area.",
+    "bg": "F5F5F5",
+    "font_color": "555555"
+  },
+  {
+    "ticker": "MRVL",
+    "macro_lo": 34.65,
+    "macro_hi": 126.99,
+    "current": 131.3,
+    "al1_display": "$91.72",
+    "status": "Above macro AL1 ($91.71) — watch for AL1 test.",
+    "bg": "F5F5F5",
+    "font_color": "555555"
+  },
+  {
+    "ticker": "PLTR",
+    "macro_lo": 5.92,
+    "macro_hi": 207.52,
+    "current": 132.37,
+    "al1_display": "$130.51",
+    "status": "Above macro AL1 ($130.51). Set alert at AL1.",
+    "bg": "F5F5F5",
+    "font_color": "555555"
+  },
+  {
+    "ticker": "CCJ",
+    "macro_lo": 17.86,
+    "macro_hi": 135.24,
+    "current": 116.7,
+    "al1_display": "$90.40",
+    "status": "Above macro AL1 ($90.42). Hold — alert at $90.",
+    "bg": "F5F5F5",
+    "font_color": "555555"
+  },
+  {
+    "ticker": "NKE",
+    "macro_lo": 77.22,
+    "macro_hi": 166.63,
+    "current": 44.2,
+    "al1_display": "$132.48",
+    "status": "BELOW 78.6% ($96.35) — deepest value. Price BELOW 2022 bear low ($77.22). CEO turnaround. Only buy on $77.22 reclaim.",
+    "bg": "FFCCCC",
+    "font_color": "880000"
+  },
+  {
+    "ticker": "PANW",
+    "macro_lo": 68.37,
+    "macro_hi": 223.61,
+    "current": 162.51,
+    "al1_display": "$164.31",
+    "status": "AL1 HIT ($164.31) — accumulate. Between AL1 and AL2 ($146).",
+    "bg": "E8F5E9",
+    "font_color": "2E7D32"
+  },
+  {
+    "ticker": "RKLB",
+    "macro_lo": 3.48,
+    "macro_hi": 99.58,
+    "current": 70.62,
+    "al1_display": "$62.87",
+    "status": "Just above macro AL1 ($62.87). AL1 entry zone imminent.",
+    "bg": "E8F5E9",
+    "font_color": "2E7D32"
+  },
+  {
+    "ticker": "NVDA",
+    "macro_lo": 10.8,
+    "macro_hi": 212.17,
+    "current": 189.31,
+    "al1_display": "$135.25",
+    "status": "Above macro AL1 ($135.24). ISA hold. NVDA D200=$91.67 (rising, not breakdown).",
+    "bg": "F5F5F5",
+    "font_color": "555555"
+  },
+  {
+    "ticker": "AMZN",
+    "macro_lo": 81.69,
+    "macro_hi": 258.6,
+    "current": 239.89,
+    "al1_display": "$191.02",
+    "status": "Above macro AL1 ($191.07). ISA hold. Watch $191.",
+    "bg": "F5F5F5",
+    "font_color": "555555"
+  },
+  {
+    "ticker": "MSFT",
+    "macro_lo": 207.39,
+    "macro_hi": 552.24,
+    "current": 384.37,
+    "al1_display": "$420.51",
+    "status": "AL2 HIT ($379.82) — strong buy. Current between AL2 and AL3 ($339).",
+    "bg": "FFF8E1",
+    "font_color": "E65100"
+  },
+  {
+    "ticker": "META",
+    "macro_lo": 87.4,
+    "macro_hi": 794.38,
+    "current": 634.53,
+    "al1_display": "$524.31",
+    "status": "Above macro AL1 ($524.31) = 61.8% on TradingView. Monthly support. Set alert at $524.",
+    "bg": "E8F5E9",
+    "font_color": "2E7D32"
+  },
+  {
+    "ticker": "GOOGL",
+    "macro_lo": 82.66,
+    "macro_hi": 348.75,
+    "current": 321.31,
+    "al1_display": "$247.10",
+    "status": "Above macro AL1 ($246.04). Set alert at $246.",
+    "bg": "F5F5F5",
+    "font_color": "555555"
+  },
+  {
+    "ticker": "NFLX",
+    "macro_lo": 16.27,
+    "macro_hi": 134.12,
+    "current": 103.16,
+    "al1_display": "$89.10",
+    "status": "Just above macro AL1 ($89.04). Very close to accumulate zone.",
+    "bg": "E8F5E9",
+    "font_color": "2E7D32"
+  },
+  {
+    "ticker": "XRP-USD",
+    "macro_lo": 0.29,
+    "macro_hi": 3.84,
+    "current": 1.377,
+    "al1_display": "$2.4800",
+    "status": "BELOW AL3 ($1.64) — deep value. Macro ATH $3.84 = Jan 2018.",
+    "bg": "FFEBEE",
+    "font_color": "C62828"
+  },
+  {
+    "ticker": "ETH-USD",
+    "macro_lo": 896.11,
+    "macro_hi": 4953.73,
+    "current": 2369.9,
+    "al1_display": "$3,403.72",
+    "status": "BELOW AL3 ($2,446) — deep value. Settlement layer for stablecoins.",
+    "bg": "FFEBEE",
+    "font_color": "C62828"
+  },
+  {
+    "ticker": "BTC",
+    "macro_lo": 15599.05,
+    "macro_hi": 126198.07,
+    "current": 74442.23,
+    "al1_display": "$83,949",
+    "status": "ABOVE AL2 ($70,899) RECLAIMED. D200=$91,315 — still below D200. ISA rotation RE-ENGAGED.",
+    "bg": "FFF8E1",
+    "font_color": "E65100"
+  },
+  {
+    "ticker": "VWRP.L",
+    "macro_lo": 75.24,
+    "macro_hi": 140.92,
+    "current": 130.0,
+    "al1_display": "£115.83",
+    "status": "Above macro AL1 (£115.30). D200=£122.60 — very close to D200 support.",
+    "bg": "F5F5F5",
+    "font_color": "555555"
+  },
+  {
+    "ticker": "SMGB.L",
+    "macro_lo": 13.79,
+    "macro_hi": 55.76,
+    "current": 58.35,
+    "al1_display": "£39.73",
+    "status": "Above macro AL1 (£39.69) — near ATH. 10% SIPP core holding.",
+    "bg": "F5F5F5",
+    "font_color": "555555"
+  },
+  {
+    "ticker": "VUSA.L",
+    "macro_lo": 53.8,
+    "macro_hi": 107.01,
+    "current": 96.51,
+    "al1_display": "£86.68",
+    "status": "ABOVE AL1 (£86.68) — hold/watch. S&P 500 UCITS ETF. Add at AL1 (£86.68) or AL2 (£80.41).",
+    "bg": "F5F5F5",
+    "font_color": "555555"
+  },
+  {
+    "ticker": "SMT.L",
+    "macro_lo": 670.47,
+    "macro_hi": 1568.18,
+    "current": 1373.16,
+    "al1_display": "1,225p",
+    "status": "AL1 HIT (1225p) — accumulate. Pre-IPO SpaceX/Anthropic vehicle.",
+    "bg": "E8F5E9",
+    "font_color": "2E7D32"
+  },
+  {
+    "ticker": "TSLA",
+    "macro_lo": 101.81,
+    "macro_hi": 498.83,
+    "current": 352.42,
+    "al1_display": "$347.17",
+    "status": "AL1 ZONE ($347.17) — cautious accumulate. Robotaxi/Optimus thesis. Revenue -3.1% YoY. Fwd P/E 129x.",
+    "bg": "E8F5E9",
+    "font_color": "2E7D32"
+  },
+  {
+    "ticker": "INTC",
+    "macro_lo": 23.4,
+    "macro_hi": 68.49,
+    "current": 65.18,
+    "al1_display": "$51.27",
+    "status": "ABOVE AL1 ($51.27) — approaching ATH. Turnaround play (IFS + CHIPS Act). Wait for AL1 ($51.27) pullback.",
+    "bg": "F5F5F5",
+    "font_color": "555555"
+  },
+  {
+    "ticker": "MNTN.L",
+    "macro_lo": 0.83,
+    "macro_hi": 3.08,
+    "current": 1.92,
+    "al1_display": "$2.22",
+    "status": "BELOW AL3 ($1.69) — deep value. Pure-play SpaceX/Anthropic.",
+    "bg": "FFEBEE",
+    "font_color": "C62828"
+  }
+]
