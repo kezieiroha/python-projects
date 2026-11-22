@@ -105,7 +105,8 @@ class Phase0WorkbookContractTest(unittest.TestCase):
         summary_upside = None
         for row in range(4, summary.max_row + 1):
             if summary.cell(row=row, column=2).value == ticker:
-                summary_upside = summary.cell(row=row, column=11).value
+                # Column L (12): the D5 EMA Flag sits in K, after Gap to AL1.
+                summary_upside = summary.cell(row=row, column=12).value
                 break
         self.assertEqual(summary_upside, expected_upside)
 

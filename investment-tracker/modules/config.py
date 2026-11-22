@@ -9,7 +9,7 @@ from __future__ import annotations
 import argparse
 import os
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 PACKAGE_ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -98,6 +98,16 @@ class RunConfig:
     @property
     def run_timestamp(self):
         return self.run_dt.strftime("%d %b %Y %H:%M")
+
+    @property
+    def run_dt_utc(self):
+        """The run clock as an aware UTC datetime.
+
+        A naive ``run_dt`` (the normal case, from ``datetime.now()`` or
+        ``--run-date``) is read as local system time. Used to decide which
+        daily bars are completed sessions on each exchange.
+        """
+        return self.run_dt.astimezone(timezone.utc)
 
 
 def from_args(args, now=None):

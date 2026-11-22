@@ -1,6 +1,6 @@
 [
   {
-    "asset": "MARKET SENTIMENT — WTI Crude (CL=F) + CBOE VIX + US 10Y Yield (^TNX) + iShares 20Y+ Treasury (TLT) + US Dollar Index (DXY) as macro regime gauges.\nVIX < 15 = complacency | 15-20 = normal | 20-30 = elevated | > 30 = fear | > 40 = panic.\nTNX: < 3.5% = loose | 3.5-4.0% = neutral | 4.0-4.5% = tight | > 4.5% = restrictive.\nDXY: < 95 = weak USD (risk-on) | 95-100 = neutral | 100-105 = strong (headwind) | > 105 = very strong (global tightening).  Rising DXY = headwind for commodities / gold / EM / crypto / US multinational earnings.\nTLT moves INVERSE to yields — falling TLT = rising rates = headwind for equities / growth / crypto.\nCL=F Fib anchor: Dec 2025 low $54.98 → Apr 2026 ATH $119.48.",
+    "asset": "MARKET SENTIMENT — WTI Crude (CL=F) + CBOE VIX + US 10Y Yield (^TNX) + iShares 20Y+ Treasury (TLT) + US Dollar Index (DXY) as macro regime gauges.\nVIX < 15 = complacency | 15-20 = normal | 20-30 = elevated | > 30 = fear | > 40 = panic.\nTNX: < 3.5% = loose | 3.5-4.0% = neutral | 4.0-4.5% = tight | > 4.5% = restrictive.\nDXY: < 95 = weak USD (risk-on) | 95-100 = neutral | 100-105 = strong (headwind) | > 105 = very strong (global tightening).  Rising DXY = headwind for commodities / gold / EM / crypto / US multinational earnings.\nTLT moves INVERSE to yields — falling TLT = rising rates = headwind for equities / growth / crypto.\nCL=F Fib anchor: Dec 2025 low to Apr 2026 ATH.",
     "ticker": "",
     "ccy": "",
     "current": null,
@@ -25,11 +25,12 @@
     "fwd_pe": null,
     "de": null,
     "margin": null,
-    "notes": "ABOVE AL1 — WATCH. Macro Fib (Dec 2025 low $54.98 → Apr 2026 ATH $119.48): AL1=$94.85 | AL2=$87.23 | AL3=$79.61 | 78.6%=$68.78. Current $97.05 above AL1 ($94.85). Crude softened from spike high — near AL1 support zone. Geopolitical risk premium. Crashed $28 in a single day (Apr 8: $112 → $91) on demand destruction fears then partially recovered. Monitor: crude declining toward $95 = AL1 — risk-off signal for equities. D200=$67.02; price well above D200. W20=$81.49 / W50=$71.70 — strong bull trend.",
+    "notes": "Geopolitical risk premium. Crashed in a single day (8 Apr 2026) on demand-destruction fears, then partly recovered. A sustained fall in crude is a risk-off signal for equities. Fib anchors: Dec 2025 low to Apr 2026 ATH.",
     "rtype": "STOCK",
     "manual": null
   },
   {
+    "direction": "up",
     "asset": "CBOE Volatility Index",
     "ticker": "VIX",
     "ccy": "USD",
@@ -40,7 +41,7 @@
     "fwd_pe": null,
     "de": null,
     "margin": null,
-    "notes": "NORMAL-LOW ZONE. VIX at 18.60 — back inside normal range (15-20), falling from recent spike. VIX thresholds: < 15 = complacency (market top risk) | 15-20 = normal | 20-30 = elevated fear (prepare buy lists) | 30+ = fear (buy equities) | 40+ = panic (maximum opportunity). 1Y range: 13.38 (complacency) to 35.75 (fear peak). Current 21.19 = moderate fear. D200=18.18; VIX back near D200 — risk-off regime easing. W20=21.37 / W50=20.92. MANUAL LEVELS: VIX 20 = alert | VIX 30 = buy equities aggressively | VIX 40 = back up truck.",
+    "notes": "Fear gauge: a higher reading means more fear. Manual levels rise: first level = prepare buy lists, second = buy equities aggressively, third = panic, maximum opportunity. Regime bands are in the section header.",
     "rtype": "MANUAL",
     "manual": [
       20.0,
@@ -49,6 +50,7 @@
     ]
   },
   {
+    "direction": "up",
     "asset": "US 10-Year Treasury Yield",
     "ticker": "TNX",
     "ccy": "PCT",
@@ -59,7 +61,7 @@
     "fwd_pe": null,
     "de": null,
     "margin": null,
-    "notes": "TIGHT ZONE (4.0-4.5%). TNX at ~4.35% — within restrictive range. Yield thresholds: < 3.5% = loose / risk-on | 3.5-4.0% = neutral | 4.0-4.5% = tight | > 4.5% = restrictive (risk-off). Rising yields = headwind for growth stocks, crypto, long-duration bonds. Fed pivot expectations: market pricing ~2 cuts in 2026. Watch for breakout above 4.5% (risk-off trigger) or drop below 4.0% (risk-on signal). MANUAL ALERT LEVELS: 3.50 = loose / pivot confirmed | 4.00 = neutral boundary | 4.50 = restrictive / risk-off.",
+    "notes": "Rising yields are a headwind for growth stocks, crypto and long-duration bonds. Manual levels rise: loose/neutral boundary, neutral/tight boundary, restrictive (risk-off). Fed pivot expectations drive the path.",
     "rtype": "MANUAL",
     "manual": [
       3.5,
@@ -78,27 +80,32 @@
     "fwd_pe": null,
     "de": null,
     "margin": null,
-    "notes": "BELOW 78.6% — DEEPEST VALUE / HIGHEST YIELD. TLT below its 2022 bear low ($88.02). Macro Fib (2022 bear low $88.02 → 2020 ATH $179.70): AL1=$144.76 | AL2=$133.86 | AL3=$122.96 | 78.6%=$108.82. Current ~$85 BELOW 78.6% — bond market pricing structurally higher rates. TLT moves INVERSE to 10Y yield: rising yield = falling TLT. ETF as macro gauge only — TLT recovery signals rate normalisation / Fed pivot. D200=$89.62; price well below D200 — sustained bear regime for long-duration bonds. W20=$86.41 / W50=$89.54 — price below all key MAs.",
+    "notes": "Moves inverse to the 10Y yield: rising yields mean falling TLT. Macro gauge only; a TLT recovery signals rate normalisation or a Fed pivot. Fib anchors: 2022 bear low to 2020 ATH.",
     "rtype": "ETF",
     "manual": null
   },
   {
+    "direction": "up",
     "asset": "US Dollar Index",
     "ticker": "DXY",
     "ccy": "IDX",
     "current": 99.8,
-    "macro_lo": 89.21,
-    "macro_hi": 114.78,
+    "macro_lo": null,
+    "macro_hi": null,
     "ttm_pe": null,
     "fwd_pe": null,
     "de": null,
     "margin": null,
-    "notes": "AL3 ZONE — WEAK USD / DOLLAR IN DECLINE. Macro Fib (Jan 2021 low 89.21 → Sep 2022 ATH 114.78): AL1=104.99 | AL2=101.99 | AL3=98.99 | 78.6%=95.68. Current ~99.80 — in the AL3 zone (between 50% and 61.8% retracement). Weak dollar is TAILWIND for: commodities, gold, crypto, EM equities, US multinationals' overseas earnings. Falling DXY often correlates with risk-on rotation. DXY thresholds: < 95 = weak / risk-on | 95-100 = neutral-weak | 100-105 = strong (headwind) | > 105 = very strong (global tightening). D200=104.50; price well below D200 — confirmed dollar bear trend. W20=101.50 / W50=104.20 — price below all key MAs, bearish dollar alignment.",
-    "rtype": "STOCK",
-    "manual": null
+    "notes": "Weak dollar is a tailwind for commodities, gold, crypto, EM equities and US multinationals' overseas earnings; a falling DXY often accompanies risk-on rotation. Manual levels rise with the section bands: strong (headwind), very strong (global tightening), extreme.",
+    "rtype": "MANUAL",
+    "manual": [
+      100.0,
+      105.0,
+      110.0
+    ]
   },
   {
-    "asset": "CRYPTO SLEEVE  —  All Fib levels now anchored to 2022 bear market low → cycle ATH (macro swing).  BTC D200 SMA ($91,315) = regime line; current $68,779 confirmed below — bear regime active.  GENIUS ACT (Jul 2025): stablecoins legitimised. Stablecoin yield PROHIBITED (OCC Mar 2026).",
+    "asset": "CRYPTO SLEEVE  -  All Fib levels anchored to 2022 bear market low to cycle ATH (macro swing).  BTC D200 SMA is the regime line.  GENIUS ACT (Jul 2025): stablecoins legitimised. Stablecoin yield PROHIBITED (OCC Mar 2026).",
     "ticker": "",
     "ccy": "",
     "current": null,
@@ -123,7 +130,7 @@
     "fwd_pe": null,
     "de": 1.74,
     "margin": null,
-    "notes": "BELOW 78.6% MACRO FIB — DEEPEST VALUE ZONE. $125.75 below 78.6% ($126.62). Macro Fib (2022 low $13.26 → ATH $543.00): AL1=$340.63 | AL2=$278.13 | AL3=$215.63 | 78.6%=$126.62. Current sits BELOW 78.6% — historically extreme. BTC proxy. GTC LIMIT ORDER PENDING: BUY 100 @ $114 (near absolute floor). LEVERAGE NOTE: D/E=1.74 — ~$8.2B convertible debt used to buy BTC. Risk: debt service if BTC collapses. D200 SMA=$259.53; price well below D200 — bear regime confirmed. W20=$168.99 / W50=$230.27 / M20=$219.43 / M50=$167.66 — price below all MAs.",
+    "notes": "BTC proxy. Leverage: convertible debt used to buy BTC; debt service is the risk if BTC collapses.",
     "rtype": "ISA",
     "manual": null
   },
@@ -138,7 +145,7 @@
     "fwd_pe": null,
     "de": null,
     "margin": null,
-    "notes": "GENIUS ACT PRIMARY BENEFICIARY — USDC LEGITIMISED. Post-IPO — set alerts once price history establishes. USDC daily stablecoin volume $1T → $4T. Yield on stablecoins prohibited (Act). Market share + institutional adoption is primary thesis. Monitor $20-25 range.",
+    "notes": "GENIUS Act primary beneficiary: USDC legitimised. Post-IPO; set levels once price history establishes. Stablecoin yield is prohibited under the Act. Market share and institutional adoption are the primary thesis. USDC daily stablecoin volume grew from $1T to $4T.",
     "rtype": "MANUAL",
     "manual": [
       null,
@@ -157,7 +164,7 @@
     "fwd_pe": 30.0,
     "de": 0.53,
     "margin": 0.18,
-    "notes": "BELOW AL3 MACRO FIB — BACK UP TRUCK. $173.38 between AL3 ($189.53) and 78.6% ($120.17). Macro Fib (2022 low $31.83 → ATH $444.65): AL1=$286.95 | AL2=$238.24 | AL3=$189.53 | 78.6%=$120.17. GENIUS Act: exchange business broadly POSITIVE — regulatory clarity drives institutional volume. USDC yield-sharing secondary risk (~$200-300M of ~$7B). D200=$281.92; price well below D200. W20=$217.36 / W50=$239.74 — bearish alignment.",
+    "notes": "GENIUS Act: exchange business broadly positive; regulatory clarity drives institutional volume. USDC yield-sharing is a secondary risk (about $200M-$300M of about $7B revenue).",
     "rtype": "STOCK",
     "manual": null
   },
@@ -187,7 +194,7 @@
     "fwd_pe": null,
     "de": null,
     "margin": null,
-    "notes": "AL1 ZONE. Macro Fib (inception low £11.62 → ATH £21.58): AL1=£17.78 | AL2=£16.60 | AL3=£15.42. Current £19.36 — above AL1. NATO rearmament cycle (5% GDP by 2035). D200=£19.01; price just above D200 — holding the line. W20=£19.54 / W50=£18.46.",
+    "notes": "NATO rearmament cycle (5% of GDP by 2035). Fib anchors: inception low to ATH.",
     "rtype": "ETF",
     "manual": null
   },
@@ -202,7 +209,7 @@
     "fwd_pe": 28.0,
     "de": 0.6,
     "margin": 0.28,
-    "notes": "ABOVE AL1 — ABOVE ENTRY ZONE. Macro Fib (2022 low 64p → ATH 1420p): AL1=954p | AL2=742p | AL3=531p. Current 1121.5p well above AL1 (954p) — wait for deeper pullback. UK DEFENCE + SMR: Aero engines (Typhoon/F-35), naval propulsion, SMR programme. D200=1130p; current 1121.5p just below D200 — minor bearish signal. W20=1193p / W50=1092p. Price between W20 and W50 — watch closely.",
+    "notes": "UK defence and SMR: aero engines (Typhoon, F-35), naval propulsion, SMR programme.",
     "rtype": "STOCK",
     "manual": null
   },
@@ -232,7 +239,7 @@
     "fwd_pe": null,
     "de": null,
     "margin": null,
-    "notes": "AL2 HIT — STRONG BUY ZONE. Macro Fib (inception low £32.00 → ATH £53.61): AL1=£45.35 | AL2=£42.81 | AL3=£40.27 | 78.6%=£36.62. Current £42.20 — BELOW AL2 (£42.81), above AL3. Strong buy zone. D200=£41.77; current just above D200. W20=£44.36 / W50=£39.44 — price between W20 and W50.",
+    "notes": "Uranium and nuclear basket. Fib anchors: inception low to ATH.",
     "rtype": "ETF",
     "manual": null
   },
@@ -247,7 +254,7 @@
     "fwd_pe": 22.0,
     "de": 0.56,
     "margin": 0.09,
-    "notes": "ABOVE AL1 — ABOVE ENTRY ZONE. Macro Fib (2022 low $40.73 → ATH $411.68): AL1=$270.53 | AL2=$226.21 | AL3=$181.88 | 78.6%=$119.57. Current $295.19 above AL1 ($270.53) — not at entry yet. Wait for AL1 test. Largest US nuclear fleet (24,000MW). Three Mile Island restarted. D200=$328.82; price below D200 — bearish signal. W20=$313.36 / W50=$304.46.",
+    "notes": "Largest US nuclear fleet (24,000MW). Three Mile Island restart.",
     "rtype": "STOCK",
     "manual": null
   },
@@ -262,7 +269,7 @@
     "fwd_pe": null,
     "de": 0.0,
     "margin": -4.5,
-    "notes": "WATCHLIST ONLY — HIGHLY SPECULATIVE. $10.30 near inception low. All macro Fib levels far above current (78.6%=$20.37). DO NOT BUY until firm project contracts. Monitor only.",
+    "notes": "Highly speculative watchlist name. Do not buy until firm project contracts are signed. Monitor only.",
     "rtype": "STOCK",
     "manual": null
   },
@@ -277,7 +284,7 @@
     "fwd_pe": 10.66,
     "de": 6.25,
     "margin": -0.0834,
-    "notes": "ABOVE AL1 — WATCH (HIGH RISK). Macro Fib (inception Jul 2023 low $49.50 -> ATH $451.28): AL1=$297.80 | AL2=$250.39 | AL3=$202.98 | 78.6%=$135.48. Current $324.54 above AL1 ($297.80). Amazon nuclear supply deal — Susquehanna plant (960MW, 20yr PPA). Emerged from bankruptcy 2023; capital structure carries extreme leverage (D/E=6.25). Net margin negative. D200=$363.09; price below D200 — bearish. W20=$351.91 / W50=$333.11 — price below both weekly EMAs. High risk/reward nuclear power pure-play. Set accumulate alert at AL1 ($297.80).",
+    "notes": "Amazon nuclear supply deal: Susquehanna plant (960MW, 20-year PPA). Emerged from bankruptcy in 2023; capital structure carries heavy leverage. High risk/reward nuclear power pure-play. Fib anchors: inception Jul 2023 low to ATH.",
     "rtype": "STOCK",
     "manual": null
   },
@@ -292,7 +299,7 @@
     "fwd_pe": 37.0,
     "de": 0.11,
     "margin": 0.1283,
-    "notes": "ABOVE AL1 — WAIT FOR PULLBACK. Macro Fib (inception Apr 2024 low $118.56 -> ATH $948.38): AL1=$631.39 | AL2=$533.47 | AL3=$435.55 | 78.6%=$296.14. Current $853.16 well above AL1 ($631.39) — near ATH zone, not a buy. GE power/grid spin-off. Revenue $34B+. Gas turbines, onshore/offshore wind, grid infrastructure, SMR pipeline. Net cash positive (D/E=0.11). Net margin 12.83%. Fwd P/E 37x. D200=$649.82; price well above D200 — strong uptrend. W20=$737.88 / W50=$622.55 — price above both. Set alert at AL1 ($631.39) for a major pullback entry (~26% below current).",
+    "notes": "GE power and grid spin-off. Revenue $34B+. Gas turbines, onshore/offshore wind, grid infrastructure, SMR pipeline. Net cash positive. Fib anchors: inception Apr 2024 low to ATH.",
     "rtype": "STOCK",
     "manual": null
   },
@@ -322,7 +329,7 @@
     "fwd_pe": 11.3,
     "de": 0.4,
     "margin": 0.07,
-    "notes": "NEAR ATH — WAIT FOR PULLBACK. 3435.5p — only 54p from ATH. Macro Fib (2022 low 1619p → ATH 3490p): AL1=2775p | AL2=2555p | AL3=2334p. Current well above all Fib levels — at ATH, not a buy zone. Set alert at AL1 (2775p) for ~20% pullback. D200=2786p; current above D200. W20=2983p / W50=2833p.",
+    "notes": "Integrated oil major.",
     "rtype": "STOCK",
     "manual": null
   },
@@ -337,7 +344,7 @@
     "fwd_pe": 13.0,
     "de": 0.86,
     "margin": 0.0,
-    "notes": "NEAR ATH — WAIT FOR PULLBACK. 575.6p — only 8.5p from ATH. Macro Fib (2022 low 329.8p → ATH 584.1p): AL1=487p | AL2=457p | AL3=427p. Current above all Fib levels — near ATH. Set alert at AL1 (487p). D200=440p; price well above D200 — bullish. Fwd P/E 13x. Div 4.34%. CEO reset to fossil fuels.",
+    "notes": "Integrated oil major. CEO reset back toward fossil fuels. Dividend payer.",
     "rtype": "STOCK",
     "manual": null
   },
@@ -352,7 +359,7 @@
     "fwd_pe": 18.3,
     "de": 0.19,
     "margin": 0.09,
-    "notes": "NEAR ATH — WAIT FOR PULLBACK. $165.43 — only $5.80 from ATH. Macro Fib (2022 low $52.75 → ATH $171.23): AL1=$117.00 | AL2=$112.00 | AL3=$98.40 | 78.6%=$78.04. Current well above all Fib levels — near ATH. Set alert at AL1 ($117). D200=$121.29; price above D200. W20=$139.96 / W50=$126.05.",
+    "notes": "Integrated oil major.",
     "rtype": "STOCK",
     "manual": null
   },
@@ -367,7 +374,7 @@
     "fwd_pe": 17.5,
     "de": 0.38,
     "margin": 0.13,
-    "notes": "AT ATH — WAIT. $133.25 — only $1.62 from ATH ($134.87). Macro Fib (2022 low $61.71 → ATH $134.87): AL1=$106.92 | AL2=$98.29 | AL3=$79.60. Current well above all Fib levels. Macro not useful at ATH — wait for $107 area. D200=$96.40; price well above D200. Pure E&P, highest crude leverage.",
+    "notes": "Pure E&P with the highest crude leverage of the energy names held.",
     "rtype": "STOCK",
     "manual": null
   },
@@ -389,15 +396,15 @@
   {
     "asset": "FT Smart Grid Infrastructure",
     "ticker": "FGRD.L",
-    "ccy": "GBP",
-    "current": 45.87,
-    "macro_lo": 21.22,
-    "macro_hi": 45.88,
+    "ccy": "GBp",
+    "current": 4587.0,
+    "macro_lo": 2122.0,
+    "macro_hi": 4588.0,
     "ttm_pe": null,
     "fwd_pe": null,
     "de": null,
     "margin": null,
-    "notes": "ABOVE AL1. Macro Fib (2022 low £21.22 → ATH £45.88): AL1=£36.46 | AL2=£33.55 | AL3=£30.64. Current £42.30 well above AL1. Set alert at AL1 (£36.46). Layer 2: Power equipment.",
+    "notes": "AI infrastructure layer 2: power equipment.",
     "rtype": "ETF",
     "manual": null
   },
@@ -412,14 +419,14 @@
     "fwd_pe": null,
     "de": null,
     "margin": null,
-    "notes": "ABOVE AL1. Macro Fib (2022 low £8.67 → ATH £18.54): AL1=£14.59 | AL2=£13.61 | AL3=£12.62. Current £16.07 above AL1. Set alert at AL1 (£14.59). D200=£14.34; price above D200. Layer 3: Data centre REITs.",
+    "notes": "AI infrastructure layer 3: data centre REITs.",
     "rtype": "ETF",
     "manual": null
   },
   {
     "asset": "iShares S&P 500 Utilities",
     "ticker": "IUSU.L",
-    "ccy": "GBX",
+    "ccy": "GBp",
     "current": 848.75,
     "macro_lo": 530.0,
     "macro_hi": 883.25,
@@ -427,7 +434,7 @@
     "fwd_pe": null,
     "de": null,
     "margin": null,
-    "notes": "NEAR ATH. Macro Fib (2022 low 530p → ATH 883p): AL1=748p | AL2=707p | AL3=665p. Current 839.5p above AL1 (748p) — above entry zone. D200=795p; price above D200. W20=824p / W50=797p. Layer 4: Utilities (Constellation, NextEra).",
+    "notes": "AI infrastructure layer 4: utilities (Constellation, NextEra).",
     "rtype": "ETF",
     "manual": null
   },
@@ -442,7 +449,7 @@
     "fwd_pe": 18.0,
     "de": 0.32,
     "margin": 0.33,
-    "notes": "ABOVE AL1. Macro Fib (2022 low $34.65 → ATH $126.99): AL1=$91.71 | AL2=$80.82 | AL3=$70.92. Current $97.68 above AL1 ($91.71). Set accumulate alert at AL1 ($91.71). Custom AI silicon (XPUs) for AWS/Google/MSFT. D200=$80.93. W20=$84.47 / W50=$78.80.",
+    "notes": "Custom AI silicon (XPUs) for AWS, Google and Microsoft.",
     "rtype": "STOCK",
     "manual": null
   },
@@ -472,7 +479,7 @@
     "fwd_pe": 83.0,
     "de": 0.0,
     "margin": 0.36,
-    "notes": "ABOVE AL1 — WATCH. Macro Fib (2022 low $5.92 → ATH $207.52): AL1=$130.51 | AL2=$106.72 | AL3=$82.92 | 78.6%=$48.78. Current $133.58 — just above AL1 ($130.51). AT ACCUMULATE ZONE. Set alert at AL1. No debt. 36% net margin. Rev +70% YoY. D200=$164.02; current below D200 — bearish. W20=$155.56 / W50=$148.86 — price below both weekly EMAs.",
+    "notes": "No debt. Revenue +70% YoY.",
     "rtype": "STOCK",
     "manual": null
   },
@@ -487,7 +494,7 @@
     "fwd_pe": 59.0,
     "de": 0.15,
     "margin": 0.17,
-    "notes": "ABOVE AL1. Macro Fib (2022 low $17.86 → ATH $135.24): AL1=$90.42 | AL2=$76.55 | AL3=$62.66. Current $104.67 above AL1 ($90.42). Set alert at AL1 ($90.42). Western uranium monopoly. D200=$91.94; current above D200. W20=$104.04 / W50=$87.97.",
+    "notes": "Western uranium monopoly.",
     "rtype": "STOCK",
     "manual": null
   },
@@ -502,7 +509,7 @@
     "fwd_pe": 22.0,
     "de": 0.98,
     "margin": 0.0484,
-    "notes": "BELOW 78.6% MACRO FIB — DEEPEST VALUE. $44.20 below 78.6% ($96.35). Macro Fib (Oct 2022 low $77.22 → ATH $166.63 Nov 2021): AL1=$132.47 | AL2=$121.92 | AL3=$111.37 | 78.6%=$96.35. EXTREME: current price is BELOW the 2022 bear market low ($77.22) — historic dislocation (-43% below). CEO Elliott Hill (Oct 2024, replaced Donahoe) executing turnaround: DTC rebalancing, wholesale channel rebuild, brand reinvestment. Revenue +0.1% YoY; earnings -34.8% YoY. China slowdown structural headwind. Manufacturing risk: ~100% Asia-based production exposed to US tariffs. Net margin 4.8% (thin). D/E=0.98 (approaching high leverage). Div yield 3.7%. D200=$65.17; price massively below D200 — deep bear regime. W20=$56.16 / W50=$59.90 / M20=$66.92 / M50=$80.31 — price below ALL MAs. Only accumulate on confirmed recovery above 2022 bear low ($77.22). Set alert at $77.22 reclaim.",
+    "notes": "Turnaround under CEO Elliott Hill (Oct 2024): DTC rebalancing, wholesale channel rebuild, brand reinvestment. China slowdown is a structural headwind. Manufacturing is almost entirely Asia-based and exposed to US tariffs. Only add on a confirmed reclaim of the 2022 bear low. Fib anchors: Oct 2022 low, Nov 2021 ATH.",
     "rtype": "STOCK",
     "manual": null
   },
@@ -532,7 +539,7 @@
     "fwd_pe": 39.0,
     "de": 0.04,
     "margin": 0.13,
-    "notes": "AL1 HIT — ACCUMULATE. Macro Fib (2022 low $68.37 → ATH $223.61): AL1=$164.31 | AL2=$146.00 | AL3=$127.68 | 78.6%=$101.49. Current $156.36 BELOW AL1 ($164.31), ABOVE AL2 ($146.00) — ACCUMULATE ZONE. AI-native cybersecurity (Cortex XDR, XSIAM, SASE). Net margin 13%. Fwd P/E 39x. D200=$188.50; price well below D200. W20=$172.64 / W50=$180.54 — bearish.",
+    "notes": "AI-native cybersecurity (Cortex XDR, XSIAM, SASE).",
     "rtype": "STOCK",
     "manual": null
   },
@@ -555,14 +562,14 @@
     "asset": "Rocket Lab",
     "ticker": "RKLB",
     "ccy": "USD",
-    "current": 70.62,
+    "current": 52.6,
     "macro_lo": 3.48,
     "macro_hi": 99.58,
     "ttm_pe": null,
-    "fwd_pe": null,
-    "de": 0.0,
-    "margin": -0.26,
-    "notes": "ABOVE AL1 — NEAR ACCUMULATE. Macro Fib (2022 low $3.48 → ATH $99.58): AL1=$62.87 | AL2=$51.53 | AL3=$40.18 | 78.6%=$23.99. Current $65.94 just ABOVE AL1 ($62.87) — AL1 entry zone very close. DoD/NSSL contracts. D200=$57.23; current above D200. W20=$66.86 — price at W20 EMA.",
+    "fwd_pe": 914.9,
+    "de": 0.04,
+    "margin": -0.2151,
+    "notes": "DoD and NSSL launch contracts.",
     "rtype": "STOCK",
     "manual": null
   },
@@ -570,14 +577,14 @@
     "asset": "Intuitive Machines",
     "ticker": "LUNR",
     "ccy": "USD",
-    "current": 24.41,
+    "current": 10.52,
     "macro_lo": 6.135,
     "macro_hi": 23.315,
     "ttm_pe": null,
     "fwd_pe": null,
-    "de": 0.64,
-    "margin": -0.38,
-    "notes": "ABOVE AL1 — WATCH. Macro Fib (inception low $6.135 → ATH $23.315): AL1=$16.75 | AL2=$14.72 | AL3=$12.70. Current $17.52 above AL1. Set alert at AL1 ($16.75). NASA CLPS contractor.",
+    "de": 0.53,
+    "margin": -0.2664,
+    "notes": "NASA CLPS contractor. Fib anchors: inception low to ATH.",
     "rtype": "STOCK",
     "manual": null
   },
@@ -607,7 +614,7 @@
     "fwd_pe": null,
     "de": null,
     "margin": null,
-    "notes": "AL1 HIT — ACCUMULATE. Macro Fib (2022 low £75.24 → ATH £140.92): AL1=£115.30 | AL2=£108.08 | AL3=£100.87 | 78.6%=£89.78. Current £123.58 BELOW macro AL1? No — current £123.58 above AL1 (£115.30). 3 tranches bought avg ~£126-128. 4th tranche planning. D200=£122.60; current £123.58 just above D200 — very close to D200 support. W20=£126.06 / W50=£121.11 — price between W20 and W50.",
+    "notes": "SIPP core global equity holding. Three tranches bought; fourth tranche planned.",
     "rtype": "SIPP",
     "manual": null
   },
@@ -622,7 +629,7 @@
     "fwd_pe": null,
     "de": null,
     "margin": null,
-    "notes": "ABOVE AL1. Macro Fib (2022 low £13.79 → ATH £55.76): AL1=£39.69 | AL2=£34.78 | AL3=£29.86. Current £50.65 well above AL1 — near ATH. 10% SIPP allocation. D200=£43.66; current above D200. W20=£49.15 / W50=£43.07.",
+    "notes": "10% SIPP allocation.",
     "rtype": "SIPP",
     "manual": null
   },
@@ -637,7 +644,7 @@
     "fwd_pe": null,
     "de": null,
     "margin": null,
-    "notes": "ABOVE AL1 — WATCH / HOLD. Macro Fib (Jun 2022 low £53.80 → ATH £107.01): AL1=£86.68 | AL2=£80.41 | AL3=£74.13 | 78.6%=£65.19. Current £96.51 well above AL1 (£86.68) — not at entry. SIPP core holding. VUSA tracks S&P 500. Vanguard, 0.07% OCF. Unhedged — GBP/USD affects returns in GBP. Accumulate on pullbacks: AL1 (£86.68) = strong add; AL2 (£80.41) = back up truck; AL3 (£74.13) = conviction buy. Apr 2025 tariff crash low: £69.89 intraweek — 78.6% Fib £65.19 was not hit. D200=£94.06; current above D200 — bullish. W20=£94.95 / W50=£92.41 — price above both weekly EMAs, bullish cross. M20=£89.19 / M50=£77.96 — strongly bullish long-term structure.",
+    "notes": "SIPP core holding tracking the S&P 500. Vanguard, 0.07% OCF. Unhedged: GBP/USD moves affect returns in GBP. Add on pullbacks to the alert levels. The Apr 2025 tariff crash low held above the deep-value level.",
     "rtype": "SIPP",
     "manual": null
   },
@@ -667,7 +674,7 @@
     "fwd_pe": 16.0,
     "de": 0.4,
     "margin": 0.56,
-    "notes": "ABOVE AL1 — ABOVE MACRO ENTRY. Macro Fib (2022 low $10.80 → ATH $212.17): AL1=$135.24 | AL2=$111.49 | AL3=$87.68. Current $166.60 above macro AL1 ($135.24) — not at macro entry yet. Fwd P/E 16x. Rev +73%. D200=$91.67; price well above D200 — note D200 is still rising, not a breakdown. W20=$179.82 / W50=$168.75 — current between W20 and W50, bearish crossover risk.",
+    "notes": "AI accelerator leader. Revenue +73% YoY.",
     "rtype": "ISA",
     "manual": null
   },
@@ -682,7 +689,7 @@
     "fwd_pe": 23.0,
     "de": 0.43,
     "margin": 0.11,
-    "notes": "ABOVE AL1 — NEAR ENTRY. Macro Fib (2022 low $81.69 → ATH $258.60): AL1=$191.07 | AL2=$170.15 | AL3=$149.22. Current $198.42 above AL1 ($191.07) — holding above macro accumulate zone. AL1 ($191.07) = next key level to watch. AWS + ads + Prime. D200=$167.90; price well above D200. W20=$217.70 / W50=$217.23 — price below both.",
+    "notes": "AWS, advertising and Prime.",
     "rtype": "ISA",
     "manual": null
   },
@@ -697,7 +704,7 @@
     "fwd_pe": 20.0,
     "de": 0.43,
     "margin": 0.39,
-    "notes": "AL2 HIT — STRONG BUY. Macro Fib (2022 low $207.39 → ATH $552.24): AL1=$420.37 | AL2=$379.82 | AL3=$339.24 | 78.6%=$281.27. Current $365.97 between AL2 ($379.82) and AL3 ($339.24) — STRONG BUY ZONE. Azure AI + Office 365 + Copilot. Rev +16.7%, earnings +59.8%. Fwd P/E 20x. Net margin 39%. D200=$373.19; current near but below D200 — bearish signal. W20=$429.31 / W50=$447.79 — price well below weekly EMAs.",
+    "notes": "Azure AI, Office 365 and Copilot. Revenue +16.7%, earnings +59.8%.",
     "rtype": "ISA",
     "manual": null
   },
@@ -712,7 +719,7 @@
     "fwd_pe": 17.0,
     "de": null,
     "margin": 0.253,
-    "notes": "AL3 HIT — BACK UP TRUCK. Macro Fib (2022 low $58.11 → ATH $344.21 Sep 2025): AL1=$234.92 | AL2=$201.16 | AL3=$167.40 | 78.6%=$119.34. Current $155.62 — BELOW AL3 ($167.40), above 78.6% ($119.34). 4th Hyperscaler alongside AWS/Azure/GCP. OCI (Oracle Cloud Infrastructure): Rev +52% YoY. Stargate AI: $500B US AI infrastructure JV (OpenAI/SoftBank/ORCL) — OCI designated primary cloud. Net margin 25%. Fwd P/E 17x. Rev +22% YoY (FY2026). Free cash flow positive. DEBT NOTE: $162B gross debt / $39B cash = $123B net debt. Shareholders equity NEGATIVE due to buybacks — D/E ratio not meaningful; leverage is structural, not distress. D200=$216.27; price well below D200 — bear regime. W20=$169.63 / W50=$184.14 — bearish. M20=$173.18; M50=$142.38 — approaching M50 support. Set accumulate alert at AL3 ($167.40).",
+    "notes": "Fourth hyperscaler alongside AWS, Azure and GCP; OCI revenue +52% YoY. Stargate AI: $500B US AI infrastructure JV (OpenAI, SoftBank, Oracle) with OCI as primary cloud. Free cash flow positive. Debt: about $162B gross debt and $39B cash. Shareholders' equity is negative due to buybacks, so D/E is not meaningful; leverage is structural, not distress. Fib anchors: Sep 2025 ATH.",
     "rtype": "ISA",
     "manual": null
   },
@@ -727,7 +734,7 @@
     "fwd_pe": 17.0,
     "de": 0.33,
     "margin": 0.3,
-    "notes": "NEAR AL1 — APPROACHING ACCUMULATE. Macro Fib (2022 low $87.40 → ATH $794.38): AL1=$524.31 | AL2=$440.89 | AL3=$357.47 | 78.6%=$238.69. Current $547.54 just ABOVE macro AL1 ($524.31) — aka 61.8% retracement on TradingView. Monthly chart: price sitting precisely on 61.8% retrace level — institutional support zone. M50 EMA=$485.12 = next stop below AL1. D200=$436.05 = below M50. Set alert at AL1 ($524.31). Strong buy on any close below $524. Facebook/IG/WhatsApp + AI. Rev +23.8%. Fwd P/E 17x. Net margin 30%.",
+    "notes": "Facebook, Instagram, WhatsApp and AI. Revenue +23.8%. On the monthly chart the 61.8% retracement of the full move is an institutional support zone.",
     "rtype": "ISA",
     "manual": null
   },
@@ -742,7 +749,7 @@
     "fwd_pe": 22.0,
     "de": 0.22,
     "margin": 0.33,
-    "notes": "ABOVE AL1. Macro Fib (2022 low $82.66 → ATH $348.75): AL1=$246.04 | AL2=$215.71 | AL3=$185.35. Current $280.92 above AL1 ($246.04) — above accumulate zone. Set alert at AL1 ($246.04). GSearch + YouTube + GCP + Waymo. D200=$163.87; price well above D200. W20=$297.37 / W50=$261.30.",
+    "notes": "Search, YouTube, GCP and Waymo.",
     "rtype": "ISA",
     "manual": null
   },
@@ -757,7 +764,7 @@
     "fwd_pe": 24.0,
     "de": 0.59,
     "margin": 0.24,
-    "notes": "ABOVE AL1. Macro Fib (2022 low $16.27 → ATH $134.12): AL1=$89.04 | AL2=$75.20 | AL3=$61.35. Current $93.32 just above AL1 ($89.04) — very close to accumulate zone. Set alert at AL1 ($89.04). Streaming monopoly + ads tier + games. D200=$107.65; price below D200 — bearish. W20=$94.70 / W50=$100.58.",
+    "notes": "Streaming leader with ads tier and games.",
     "rtype": "ISA",
     "manual": null
   },
@@ -772,7 +779,7 @@
     "fwd_pe": 28.0,
     "de": null,
     "margin": 0.27,
-    "notes": "ABOVE AL1 — WAIT FOR PULLBACK. Macro Fib (2022 low $123.88 → ATH $288.35 Dec 2025): AL1=$225.52 | AL2=$206.12 | AL3=$186.71 | 78.6%=$159.08. Current $260.52 well above AL1 ($225.52) — only 10.7% upside to ATH. Not a buy here. THESIS: iPhone installed base 2.2B devices. Services ($100B+ ARR, 30%+ margin) now >25% revenue. Apple Intelligence (AI features) = upgrade supercycle catalyst. TARIFF RISK: ~85% iPhone assembly in China — US-China tariffs are structural headwind; India/Vietnam capacity buildout partially mitigates but multi-year transition. Net margin 27%. Fwd P/E 28x — premium vs sector, justified by ecosystem lock-in + buybacks. $110B+ buybacks/year = structural price floor. D200=$250.31; price above D200 — bullish. W20=$257.26 / W50=$244.91 / M20=$239.38. Set accumulate alert at AL1 ($225.52); strong buy at AL2 ($206.12).",
+    "notes": "iPhone installed base of 2.2B devices. Services ($100B+ ARR, 30%+ margin) now over 25% of revenue. Apple Intelligence is the upgrade-cycle catalyst. Tariff risk: about 85% of iPhone assembly in China; India and Vietnam capacity partly mitigates over a multi-year transition. $110B+ annual buybacks act as structural support.",
     "rtype": "ISA",
     "manual": null
   },
@@ -787,7 +794,7 @@
     "fwd_pe": 128.84,
     "de": 0.18,
     "margin": 0.04,
-    "notes": "AL1 ZONE — CAUTIOUS ACCUMULATE. Macro Fib (2022 low $101.81 → ATH $498.83): AL1=$347.17 | AL2=$300.32 | AL3=$253.47 | 78.6%=$186.77. Current $352.08 just ABOVE AL1 ($347.17) — in the accumulate zone. THESIS: FSD/Full-Self-Driving (Robotaxi launch 2026) + Optimus humanoid robot + Energy storage (Megapack) growth. HEADWINDS: Revenue -3.1% YoY; earnings -60.6% YoY; Elon Musk brand risk (DOGE) impacting sales Europe/China. VALUATION: TTM P/E 326x / Fwd P/E 129x — extreme premium; priced for autonomy success. Net cash +$29B ($44B cash vs $15B debt). D200=$397.35; price well below D200 — bearish regime. W20=$393.10 / W50=$380.53 — price below both weekly EMAs. M20=$351.53 — price just at M20 (key support). M50=$336.30. Set strong buy at AL2 ($300.32); back-up-truck at AL3 ($253.47).",
+    "notes": "FSD and Robotaxi (2026 launch), Optimus humanoid robot, and Megapack energy storage. Headwinds: falling revenue and earnings, and brand risk affecting sales in Europe and China. Valuation is priced for autonomy success. Net cash positive.",
     "rtype": "ISA",
     "manual": null
   },
@@ -802,7 +809,7 @@
     "fwd_pe": 63.95,
     "de": 0.49,
     "margin": -0.00505,
-    "notes": "ABOVE AL1 — APPROACHING CYCLE ATH. NOT AN ENTRY. Macro Fib (Oct 2022 bear low $23.40 → Feb 2021 ATH $68.49): AL1=$51.27 | AL2=$45.94 | AL3=$40.62 | 78.6%=$33.05. Current $65.18 well above AL1 ($51.27) — do NOT chase here. THESIS: Speculative turnaround on Intel Foundry Services (IFS) + CHIPS Act. New CEO Lip-Bu Tan (Mar 2025) restructuring aggressively — cost cuts, factory refocus. US CHIPS Act: $8.5B grants + $11B loans approved; critical to domestic semiconductor sovereignty. Apr 2025 tariff crash low: $18.13 (intraweek). Stock has since tripled on deal/catalyst flow. RISKS: Currently LOSS-MAKING (net margin -0.5%); foundry ramp takes 2–3 years; AMD/TSMC competition structural. VALUATION: Fwd P/E 64x — expensive for a turnaround; D/E 0.49 — manageable debt. D200=$36.41; price massively above D200 — extended, mean-reversion risk is HIGH. W20=$46.06 / W50=$36.82 — price far above both weekly EMAs. M20=$36.03 / M50=$31.91 — long-term structure recovering. WAIT for deep pullback: AL1 ($51.27) = initial watch; AL2 ($45.94) = add; AL3 ($40.62) = conviction buy. Set GTC alert at $51.27 (AL1). Only enter on confirmed pullback — avoid FOMO at ATH.",
+    "notes": "Speculative turnaround on Intel Foundry plus the CHIPS Act. CEO Lip-Bu Tan (Mar 2025) restructuring: cost cuts, factory refocus. CHIPS Act: $8.5B grants plus $11B loans. Risks: foundry ramp takes 2-3 years; AMD and TSMC competition. Enter only on a confirmed pullback. Fib anchors: Oct 2022 low, Feb 2021 ATH.",
     "rtype": "ISA",
     "manual": null
   },
@@ -817,7 +824,7 @@
     "fwd_pe": null,
     "de": null,
     "margin": null,
-    "notes": "BELOW AL3 — DEEP VALUE. Macro Fib (2022 low $0.29 → all-time ATH $3.84 Jan 2018): AL1=$2.48 | AL2=$2.07 | AL3=$1.64 | 78.6%=$1.05. Current $1.36 between AL3 ($1.64) and 78.6% ($1.05) — extreme value zone. GENIUS Act: RLUSD stablecoin legitimised. Ripple regulatory clarity = bullish long-term. D200=$2.06; price well below D200. W20=$1.70 / W50=$2.03 — bearish. Add below $1.64.",
+    "notes": "GENIUS Act: RLUSD stablecoin legitimised. Ripple regulatory clarity is a long-term positive. Fib anchors: 2022 low to Jan 2018 ATH.",
     "rtype": "STOCK",
     "manual": null
   },
@@ -832,7 +839,7 @@
     "fwd_pe": 21.0,
     "de": 0.0,
     "margin": -3.0,
-    "notes": "#1 Ethereum treasury (4.6M ETH staked). Launched Jun 2025 — 9mo history, no 2022 macro anchor. Down 87% from $161 high. ETH at $2,059 (below macro AL3 $2,446). GENIUS Act: staking yield NOT a stablecoin yield — thesis intact. D200=$36.63 / W20=$26.31 — price below all MAs. Do not buy until crypto floor confirmed. Manual levels: $30/$20/$10.",
+    "notes": "Largest Ethereum treasury (4.6M ETH staked). Launched Jun 2025, so there is no 2022 macro anchor; manual levels apply. GENIUS Act: staking yield is not a stablecoin yield, so the thesis is intact. Do not buy until a crypto floor is confirmed.",
     "rtype": "MANUAL",
     "manual": [
       30.0,
@@ -851,7 +858,7 @@
     "fwd_pe": null,
     "de": null,
     "margin": null,
-    "notes": "BELOW AL3 — DEEP VALUE (REFERENCE ONLY). Macro Fib (2022 low $896 → ATH $4,954): AL1=$3,404 | AL2=$2,925 | AL3=$2,446 | 78.6%=$1,764. Current $2,370 between AL3 ($2,446) and 78.6% ($1,764) — approaching AL3. GENIUS Act tailwind: ETH is the primary stablecoin settlement layer ($1T+ daily volume). D200=$3,093; price well below D200. W20=$2,511 / M50=$2,503 — bearish structure. Not held. Monitor for entry at AL3 ($2,446) reclaim.",
+    "notes": "Reference only, not held. GENIUS Act tailwind: ETH is the primary stablecoin settlement layer ($1T+ daily volume).",
     "rtype": "STOCK",
     "manual": null
   },
@@ -881,7 +888,7 @@
     "fwd_pe": null,
     "de": null,
     "margin": null,
-    "notes": "AL2 HIT — STRONG BUY (MACRO). Macro Fib (2022 low $15,599 → ATH $126,198): AL1=$83,949 | AL2=$70,899 | AL3=$57,848 | 78.6%=$39,267. Current $74,442 — ABOVE AL2 ($70,899), reclaimed. AL2 reclaim = bullish signal. D200=$91,315; price well below D200 — BEAR REGIME CONFIRMED. W20=$79,354 / W50=$88,689 / M20=$83,486 / M50=$65,485 — all above current price. ISA rotation thesis RE-ENGAGED — AL2 ($70,899) reclaimed. Next resistance: AL1 ($83,949). Next support: AL3=$57,848. GENIUS Act OCC rules Mar 2026 — market digesting.",
+    "notes": "ISA rotation thesis. GENIUS Act OCC rules (Mar 2026) still being digested by the market.",
     "rtype": "STOCK",
     "manual": null
   },
@@ -911,7 +918,7 @@
     "fwd_pe": null,
     "de": null,
     "margin": null,
-    "notes": "AL1 HIT — ACCUMULATE. Macro Fib (2022 low 670p → ATH 1568p Nov 2021): AL1=1225p | AL2=1119p | AL3=1013p | 78.6%=862p. Current 1185.8p BELOW AL1 (1225p) — accumulate zone. SpaceX top holding (~15% NAV). D200=1130p; current above D200. W20=1175p / W50=1116p — price just above both. SpaceX/Anthropic IPOs = major NAV catalysts. Trades at discount to NAV.",
+    "notes": "SpaceX is the top holding (about 15% of NAV). SpaceX and Anthropic IPOs are major NAV catalysts. Trades at a discount to NAV. Fib anchors: Nov 2021 ATH.",
     "rtype": "ISA",
     "manual": null
   },
@@ -926,7 +933,7 @@
     "fwd_pe": null,
     "de": null,
     "margin": null,
-    "notes": "BELOW AL3 — DEEP VALUE. Macro Fib (2022 low $0.83 → ATH $3.08 Nov 2021): AL1=$2.22 | AL2=$1.96 | AL3=$1.69 | 78.6%=$1.31. Current $1.72 between AL3 ($1.69) and AL2 ($1.96) — deep value zone. D200=$1.35; current above D200. W20=$1.58 / M50=$1.25 — mixed MA picture. Pure-play SpaceX+Anthropic. Higher upside but less liquid than SMT.L.",
+    "notes": "Pure-play SpaceX and Anthropic exposure. Higher upside but less liquid than SMT.L. Quoted in USD. Fib anchors: Nov 2021 ATH.",
     "rtype": "ISA",
     "manual": null
   },
@@ -956,7 +963,7 @@
     "fwd_pe": null,
     "de": 0.0,
     "margin": -0.5,
-    "notes": "SPECULATIVE — AI-DRIVEN DRUG DISCOVERY. Physics-based computational platform for drug discovery. Revenue from software + drug pipeline milestones. Pre-profit; net margin ~-50%. Partnerships: BMS, GSK, Eli Lilly. Revenue growing ~20% YoY. Macro Fib anchors: 2022 bear low $14.03 → cycle ATH $109.64. Set alert at AL1 ($75.93) and AL2 ($61.83). Set Fib alerts manually. Cash-rich balance sheet (~$500M). No debt.",
+    "notes": "AI-driven drug discovery: physics-based computational platform. Revenue from software plus pipeline milestones, growing about 20% YoY. Partnerships: BMS, GSK, Eli Lilly. Cash-rich balance sheet (about $500M), no debt.",
     "rtype": "STOCK",
     "manual": null
   },
@@ -971,7 +978,7 @@
     "fwd_pe": null,
     "de": null,
     "margin": null,
-    "notes": "SPECULATIVE — HPC/AI MEMORY & STORAGE. Formerly SMART Global Holdings (SGH). Designs memory modules and HPC solutions for AI/data centre workloads. Revenue ~$400M. Transitioning to higher-margin AI infrastructure solutions. Fib anchors: set manually once price history establishes under PENG ticker. Set alert levels manually.",
+    "notes": "HPC and AI memory/storage. Formerly SMART Global Holdings (SGH). Revenue about $400M, moving to higher-margin AI infrastructure solutions. Fib anchors to be set once price history establishes under the PENG ticker.",
     "rtype": "STOCK",
     "manual": null
   },
@@ -986,7 +993,7 @@
     "fwd_pe": null,
     "de": 0.0,
     "margin": -0.05,
-    "notes": "SPECULATIVE — AGENTIC AI / AUTOMATION. Enterprise automation platform: RPA + AI agents. ~$1.4B revenue run-rate, growing ~10% YoY. Microsoft partnership. SAP integration. Path to profitability: FCF positive. No debt. ~$1.8B cash. Macro Fib anchors: 2022 bear low $10.55 → IPO ATH $90.00. AL1=$56.73 | AL2=$50.27 | AL3=$43.81 | 78.6%=$33.26. Activist pressure → cost discipline. Watch for AI agent monetisation.",
+    "notes": "Agentic AI and automation: RPA plus AI agents. About $1.4B revenue run-rate, growing about 10% YoY. Microsoft and SAP partnerships. FCF positive, no debt, about $1.8B cash. Activist pressure driving cost discipline. Watch AI agent monetisation. Fib anchors: 2022 low to IPO ATH.",
     "rtype": "STOCK",
     "manual": null
   },
@@ -1001,7 +1008,7 @@
     "fwd_pe": null,
     "de": 0.0,
     "margin": -0.15,
-    "notes": "SPECULATIVE — AI-NATIVE CYBERSECURITY. Singularity platform: XDR + CNAPP + AI-SOC. Revenue ~$800M growing ~30% YoY. Competing vs CrowdStrike post-CSST outage (Jul 2024 gained share). Pre-profit; improving margins. No debt. ~$1.1B cash. Macro Fib anchors: 2022 bear low $12.43 → ATH $77.86. AL1=$50.93 | AL2=$45.14 | AL3=$39.36 | 78.6%=$30.04. Thesis: AI SOC automation + Purple AI analyst assistant driving upsell.",
+    "notes": "AI-native cybersecurity: Singularity platform (XDR, CNAPP, AI-SOC). Revenue about $800M growing about 30% YoY; gained share after the Jul 2024 CrowdStrike outage. No debt, about $1.1B cash. Thesis: AI SOC automation and Purple AI driving upsell.",
     "rtype": "STOCK",
     "manual": null
   },
@@ -1016,7 +1023,7 @@
     "fwd_pe": null,
     "de": 0.0,
     "margin": 0.02,
-    "notes": "SPECULATIVE — GLOBAL PAYMENTS PLATFORM. Vertical-specific payments for healthcare, education, travel. Revenue ~$440M growing ~25% YoY. Near-breakeven FCF. No debt. Macro Fib anchors: 2022 bear low $12.63 → ATH $48.66. AL1=$34.94 | AL2=$30.64 | AL3=$26.35 | 78.6%=$20.39. Thesis: global tuition/healthcare payment flows with high switching costs.",
+    "notes": "Vertical payments for healthcare, education and travel. Revenue about $440M growing about 25% YoY. Near-breakeven FCF, no debt. Thesis: global tuition and healthcare payment flows with high switching costs.",
     "rtype": "STOCK",
     "manual": null
   },
@@ -1031,7 +1038,7 @@
     "fwd_pe": null,
     "de": 0.0,
     "margin": -0.1,
-    "notes": "SPECULATIVE — POWER ELECTRONICS / GRID + DEFENCE. Wind turbine electrical systems + grid solutions. Also naval defence: degaussing systems for US Navy. Revenue ~$150M. Pre-profit. NOTE: stock surged past prior ATH (~$40) on AI grid demand — set new cycle ATH manually once confirmed. 2022 bear low $6.14 still valid as lower anchor. Thesis: power grid modernisation + defence superconductor tech.",
+    "notes": "Power electronics for grid and defence: wind turbine electrical systems, grid solutions, US Navy degaussing systems. Revenue about $150M. Thesis: grid modernisation plus defence superconductor technology. Cycle ATH to be set once confirmed; 2022 bear low remains the lower anchor.",
     "rtype": "STOCK",
     "manual": null
   },
@@ -1046,7 +1053,7 @@
     "fwd_pe": null,
     "de": 0.0,
     "margin": -0.4,
-    "notes": "SPECULATIVE — SURGICAL ROBOTICS (UROLOGY). AquaBeam robotic system for BPH treatment. Revenue ~$300M growing ~60% YoY. Pre-profit but rapid commercialisation. Macro Fib anchors: 2022 IPO low $19.85 → ATH $132.98. AL1=$89.75 | AL2=$76.42 | AL3=$63.08 | 78.6%=$43.81. Thesis: only FDA-cleared robotic waterjet BPH system. TAM $3B+. Urology robotics disruptor.",
+    "notes": "Surgical robotics (urology): AquaBeam robotic system for BPH. Revenue about $300M growing about 60% YoY. Only FDA-cleared robotic waterjet BPH system; TAM $3B+. Fib anchors: 2022 IPO low to ATH.",
     "rtype": "STOCK",
     "manual": null
   },
@@ -1061,7 +1068,7 @@
     "fwd_pe": null,
     "de": null,
     "margin": null,
-    "notes": "SPECULATIVE — AI CREDIT MARKETPLACE. AI-driven credit decisioning embedded in lender workflows. Partners: Ally, SoFi, US Bank. Revenue ~$900M but high volatility. Pre-profit. SPAC history → complex capital structure. Watch dilution risk. Set Fib anchors manually once stable price regime established. Monitor $2-5 range for accumulation.",
+    "notes": "AI credit marketplace embedded in lender workflows. Partners: Ally, SoFi, US Bank. Revenue about $900M but volatile. SPAC history and complex capital structure; watch dilution risk. Set Fib anchors once a stable price regime is established.",
     "rtype": "STOCK",
     "manual": null
   },
@@ -1076,7 +1083,7 @@
     "fwd_pe": null,
     "de": 0.0,
     "margin": -1.5,
-    "notes": "SPECULATIVE — IN VIVO CRISPR GENE EDITING. Systemic CRISPR/Cas9 delivery platform. Lead: NTLA-2001 (transthyretin amyloidosis — Phase 3). NTLA-2002 (HAE — Phase 2). Cash runway ~2 years. No revenue (clinical stage). Partnered with Regeneron. Macro Fib anchors: 2022 bear low $20.29 → ATH $222.12. AL1=$137.56 | AL2=$121.21 | AL3=$104.84 | 78.6%=$76.10. Thesis: first systemic in vivo CRISPR therapy → platform value. Binary binary on Phase 3 data.",
+    "notes": "In vivo CRISPR gene editing. Lead: NTLA-2001 (transthyretin amyloidosis, Phase 3); NTLA-2002 (HAE, Phase 2). Clinical stage, no revenue, about 2 years cash runway. Partnered with Regeneron. Binary on Phase 3 data.",
     "rtype": "STOCK",
     "manual": null
   },
@@ -1091,7 +1098,7 @@
     "fwd_pe": null,
     "de": 0.0,
     "margin": -1.8,
-    "notes": "SPECULATIVE — BASE EDITING (NEXT-GEN CRISPR). Precision base editing without double-strand DNA breaks. Pipeline: BEAM-101 (sickle cell/beta-thal), BEAM-302 (AAT deficiency). Clinical stage. Cash ~$800M (extended runway). Partnered with Pfizer ($300M deal). Macro Fib anchors: 2022 bear low $22.25 → ATH $145.80. AL1=$98.59 | AL2=$84.02 | AL3=$69.47 | 78.6%=$48.89. Thesis: base editing is cleaner than standard CRISPR — potential platform licensing value.",
+    "notes": "Base editing without double-strand DNA breaks. Pipeline: BEAM-101 (sickle cell, beta-thalassaemia), BEAM-302 (AAT deficiency). Clinical stage. Cash about $800M. Pfizer partnership ($300M deal). Potential platform licensing value.",
     "rtype": "STOCK",
     "manual": null
   },
@@ -1106,7 +1113,7 @@
     "fwd_pe": null,
     "de": 0.0,
     "margin": -1.2,
-    "notes": "SPECULATIVE — GENERATIVE AI FOR DRUG DISCOVERY. AI protein design platform (generative biology). Drug creation using AI + synthetic biology. Pre-revenue (platform licensing stage). Partnerships: AstraZeneca, Merck. Cash ~$250M. Macro Fib anchors: 2022 bear low $3.15 → ATH $29.80. AL1=$19.63 | AL2=$16.47 | AL3=$13.32 | 78.6%=$8.85. Thesis: AI-designed antibodies at scale — zero-shot drug design platform. Long-duration bet.",
+    "notes": "Generative AI for drug discovery: AI protein design. Pre-revenue, platform licensing stage. Partnerships: AstraZeneca, Merck. Cash about $250M. Long-duration bet on AI-designed antibodies.",
     "rtype": "STOCK",
     "manual": null
   },
@@ -1121,7 +1128,7 @@
     "fwd_pe": null,
     "de": null,
     "margin": -0.6,
-    "notes": "SPECULATIVE — AI EARTH OBSERVATION INTELLIGENCE. Sub-daily satellite imagery + AI analytics. Government/defence customers (NRO, NGA). Revenue ~$100M growing ~20% YoY. NOTE: BKSY underwent 1:10 reverse split (May 2023) — set Fib anchors manually in post-split terms. Pre-split low $1.20 → post-split ~$12. Set new ATH manually from post-split price history. Thesis: real-time intelligence from space — AI-fusion of imagery + signals data.",
+    "notes": "AI earth observation: sub-daily satellite imagery plus analytics for government and defence (NRO, NGA). Revenue about $100M growing about 20% YoY. 1:10 reverse split (May 2023); set Fib anchors in post-split terms.",
     "rtype": "STOCK",
     "manual": null
   },
@@ -1136,7 +1143,7 @@
     "fwd_pe": null,
     "de": 0.0,
     "margin": -0.8,
-    "notes": "SPECULATIVE — MILITARY DRONE SYSTEMS. Small UAS (FPV drones) for US DoD. Black Widow and Fleep drones qualified for US Army SRR programme. Revenue ~$35M growing rapidly. NDAA compliant (no Chinese components). Macro Fib anchors: 2022 bear low $1.52 → ATH $14.85. AL1=$9.63 | AL2=$8.18 | AL3=$6.72 | 78.6%=$4.70. Thesis: US-made defence drone supplier. Drone warfare structural demand. Small float.",
+    "notes": "Military drone systems: small UAS for US DoD. Black Widow qualified for the US Army SRR programme. NDAA compliant (no Chinese components). Revenue about $35M, growing fast. Small float.",
     "rtype": "STOCK",
     "manual": null
   },
@@ -1151,7 +1158,7 @@
     "fwd_pe": null,
     "de": null,
     "margin": -0.7,
-    "notes": "SPECULATIVE — DAILY EARTH IMAGING + GEOSPATIAL ANALYTICS. Dove/SkySat constellation. Daily global imaging coverage. Revenue ~$240M growing ~10% YoY. Pre-profit. NOTE: verify price history for reverse split adjustments before setting Fib anchors. Set bear low and ATH manually from post-split adjusted history. Thesis: only company offering daily global imagery at scale. Data-as-a-service moat.",
+    "notes": "Daily global earth imaging (Dove and SkySat constellations) and geospatial analytics. Revenue about $240M growing about 10% YoY. Data-as-a-service moat. Set Fib anchors from split-adjusted history.",
     "rtype": "STOCK",
     "manual": null
   },
@@ -1166,7 +1173,7 @@
     "fwd_pe": null,
     "de": 0.2,
     "margin": null,
-    "notes": "SPECULATIVE — URANIUM DEVELOPER (ATHABASCA). Wheeler River project (Phoenix ISR + Gryphon). Pre-production; Phoenix ISR could be lowest-cost uranium mine globally. EA approved. 23.9% stake in Orano Canada joint venture. No revenue (developer). Macro Fib anchors: 2022 bear low $0.96 → ATH $3.76. AL1=$2.69 | AL2=$2.36 | AL3=$2.04 | 78.6%=$1.60. Thesis: ISR uranium mining at Wheeler River = structural supply to nuclear renaissance.",
+    "notes": "Uranium developer in the Athabasca basin: Wheeler River (Phoenix ISR and Gryphon). Phoenix ISR could be among the lowest-cost uranium mines globally. EA approved. 23.9% stake in the Orano Canada JV. Pre-production, no revenue.",
     "rtype": "STOCK",
     "manual": null
   },
@@ -1181,7 +1188,7 @@
     "fwd_pe": null,
     "de": null,
     "margin": null,
-    "notes": "SPECULATIVE — GRAPHENE MATERIALS. Mass-production graphene powder for EV batteries, composites. Trades on TSX Venture Exchange (symbol: GRA). Canadian company (revenues in CAD). Revenue ~CAD $50M growing. Pre-profit. Customers: GM, General Dynamics. Thesis: graphene battery enhancement + lightweighting composites for EV/aerospace. Set Fib anchors manually in CAD. Note: live price may require GRA.TO in yfinance.",
+    "notes": "Mass-production graphene powder for EV batteries and composites. Listed on TSX Venture (GRA.TO), reports in CAD. Revenue about CAD 50M. Customers: GM, General Dynamics. Set Fib anchors in CAD.",
     "rtype": "STOCK",
     "manual": null
   },
@@ -1196,7 +1203,7 @@
     "fwd_pe": null,
     "de": null,
     "margin": null,
-    "notes": "SPECULATIVE — SOLID-STATE BATTERY (EV). Lithium-metal solid-state separator technology. Pre-revenue; pilot production. VW backed. CEO Jagdeep Singh. Macro Fib anchors: SPAC low $4.78 → ATH $131.67. AL1=$86.30 | AL2=$68.23 | AL3=$50.17 | 78.6%=$25.73. Thesis: solid-state battery is holy grail for EVs — if commercialised, transformational. Very long duration / binary. Watch 2026 production milestones with VW.",
+    "notes": "Solid-state lithium-metal battery for EVs. Pre-revenue, pilot production. VW backed. Very long duration, binary. Watch 2026 production milestones with VW. Fib anchors: SPAC low to ATH.",
     "rtype": "STOCK",
     "manual": null
   },
@@ -1211,7 +1218,7 @@
     "fwd_pe": null,
     "de": 0.0,
     "margin": null,
-    "notes": "SPECULATIVE — TRAPPED-ION QUANTUM COMPUTING. Hardware + cloud access (AWS/Azure/Google Cloud). Revenue ~$40M growing ~100% YoY. Pre-profit. #AQ metric (algorithmic qubits). Macro Fib anchors: 2022 bear low $3.25 → ATH $54.89. AL1=$35.75 | AL2=$29.07 | AL3=$22.38 | 78.6%=$12.87. Thesis: trapped-ion has lower error rates than superconducting — potential enterprise advantage. US DoD and AFRL contracts validate defence quantum use case.",
+    "notes": "Trapped-ion quantum computing with cloud access (AWS, Azure, Google Cloud). Revenue about $40M growing about 100% YoY. Lower error rates than superconducting designs. US DoD and AFRL contracts.",
     "rtype": "STOCK",
     "manual": null
   },
@@ -1226,7 +1233,7 @@
     "fwd_pe": null,
     "de": 0.0,
     "margin": null,
-    "notes": "SPECULATIVE — QUANTUM ANNEALING COMPUTING. Advantage system for optimisation problems. Revenue ~$10M. Only commercially deployed quantum system at scale. Macro Fib anchors: 2022/2023 low $0.88 → ATH $21.42. AL1=$13.71 | AL2=$11.15 | AL3=$8.59 | 78.6%=$4.60. Thesis: optimisation use cases (logistics, pharma, finance) deployable today. First-mover in commercial quantum — but annealing vs gate-based model debate ongoing.",
+    "notes": "Quantum annealing for optimisation (logistics, pharma, finance). Revenue about $10M. Only commercially deployed quantum system at scale; annealing versus gate-based debate ongoing. Fib anchors: 2022/2023 low to ATH.",
     "rtype": "STOCK",
     "manual": null
   },
@@ -1241,7 +1248,7 @@
     "fwd_pe": null,
     "de": 0.0,
     "margin": null,
-    "notes": "SPECULATIVE — SUPERCONDUCTING QUANTUM COMPUTING. Novera QPU + cloud Quantum Computing Service. Revenue ~$10M. SPAC merged 2022. US-made superconducting chips. Macro Fib anchors: SPAC low $0.77 → ATH $29.65. AL1=$19.38 | AL2=$15.21 | AL3=$11.05 | 78.6%=$4.33. Thesis: US domestic quantum hardware supplier — NDAA / national security angle. 84-qubit Ankaa-3 system. Watch for 100+ qubit milestone.",
+    "notes": "Superconducting quantum computing: Novera QPU plus cloud service. Revenue about $10M. US-made chips; national security angle. 84-qubit Ankaa-3 system; watch for a 100+ qubit milestone. Fib anchors: SPAC low to ATH.",
     "rtype": "STOCK",
     "manual": null
   },
@@ -1271,7 +1278,7 @@
     "fwd_pe": null,
     "de": null,
     "margin": null,
-    "notes": "PRE-IPO. Est. valuation ~$1T (Jan 2026 funding). Expected IPO 2027. ChatGPT >300M weekly users. INDIRECT EXPOSURE via MSFT (ISA).",
+    "notes": "Pre-IPO. Estimated valuation about $1T (Jan 2026 funding). Expected IPO 2027. ChatGPT has over 300M weekly users. Indirect exposure via MSFT (ISA).",
     "rtype": "STOCK",
     "manual": null
   },
@@ -1286,7 +1293,7 @@
     "fwd_pe": null,
     "de": null,
     "margin": null,
-    "notes": "PRE-IPO. Est. valuation ~$350B (Nov 2025). Expected IPO 2026 possible. Google + Amazon backers. Claude family. INDIRECT EXPOSURE via AMZN (ISA) + MNTN.L.",
+    "notes": "Pre-IPO. Estimated valuation about $350B (Nov 2025). IPO possible in 2026. Google and Amazon backers. Claude family. Indirect exposure via AMZN (ISA) and MNTN.L.",
     "rtype": "STOCK",
     "manual": null
   },
@@ -1295,14 +1302,126 @@
     "asset": "Space Exploration Technologies Corp.",
     "ticker": "SPCX",
     "ccy": "USD",
-    "current": 116.41,
+    "current": 127.79,
     "macro_lo": 108.66,
     "macro_hi": 211.39,
+    "ttm_pe": 555.6,
+    "fwd_pe": 43.8,
+    "de": 0.22,
+    "margin": -0.0861,
+    "notes": "[Auto-added via --add SPCX]",
+    "rtype": "STOCK",
+    "manual": null
+  },
+  {
+    "source": "added",
+    "asset": "CoreWeave, Inc.",
+    "ticker": "CRWV",
+    "ccy": "USD",
+    "current": 39.51,
+    "macro_lo": 33.51,
+    "macro_hi": 187.0,
     "ttm_pe": null,
-    "fwd_pe": 128.9,
-    "de": 0.74,
-    "margin": -0.45,
-    "notes": "BELOW 78.6% (130.64) — DEEPEST VALUE. Macro Fib (2022 low 108.66 -> ATH 211.39): AL1=172.15 | AL2=160.02 | AL3=147.9 | 78.6%=130.64. D200=None | W20=None / W50=None / M20=None / M50=None. TTM P/E=N/A | Fwd P/E=125.7 | D/E=0.74 | Net margin=-45.0%. [Auto-added via --add SPCX]",
+    "fwd_pe": null,
+    "de": 16.45,
+    "margin": -0.2556,
+    "notes": "[Auto-added via --add CRWV]",
+    "rtype": "STOCK",
+    "manual": null
+  },
+  {
+    "source": "added",
+    "asset": "AST SpaceMobile, Inc.",
+    "ticker": "ASTS",
+    "ccy": "USD",
+    "current": 23.27,
+    "macro_lo": 3.55,
+    "macro_hi": 133.86,
+    "ttm_pe": null,
+    "fwd_pe": null,
+    "de": 1.9,
+    "margin": 0.0,
+    "notes": "[Auto-added via --add ASTS]",
+    "rtype": "STOCK",
+    "manual": null
+  },
+  {
+    "source": "added",
+    "asset": "Iridium Communications Inc.",
+    "ticker": "IRDM",
+    "ccy": "USD",
+    "current": 42.08,
+    "macro_lo": 40.0,
+    "macro_hi": 63.93,
+    "ttm_pe": 27.3,
+    "fwd_pe": 29.5,
+    "de": 3.78,
+    "margin": 0.1806,
+    "notes": "[Auto-added via --add IRDM]",
+    "rtype": "STOCK",
+    "manual": null
+  },
+  {
+    "source": "added",
+    "asset": "IREN Limited",
+    "ticker": "IREN",
+    "ccy": "USD",
+    "current": 11.82,
+    "macro_lo": 1.02,
+    "macro_hi": 76.87,
+    "ttm_pe": null,
+    "fwd_pe": 43.8,
+    "de": 2.0,
+    "margin": -1.9433,
+    "notes": "[Auto-added via --add IREN]",
+    "rtype": "STOCK",
+    "manual": null
+  },
+  {
+    "source": "added",
+    "asset": "Nebius Group N.V.",
+    "ticker": "NBIS",
+    "ccy": "USD",
+    "current": 81.31,
+    "macro_lo": 14.09,
+    "macro_hi": 299.86,
+    "ttm_pe": null,
+    "fwd_pe": null,
+    "de": 1.31,
+    "margin": 0.0568,
+    "notes": "[Auto-added via --add NBIS]",
+    "rtype": "STOCK",
+    "manual": null
+  },
+  {
+    "source": "added",
+    "asset": "Applied Digital Corporation",
+    "ticker": "APLD",
+    "ccy": "USD",
+    "current": 11.49,
+    "macro_lo": 1.45,
+    "macro_hi": 50.72,
+    "ttm_pe": null,
+    "fwd_pe": null,
+    "de": 1.71,
+    "margin": -0.5303,
+    "notes": "[Auto-added via --add APLD]",
+    "rtype": "STOCK",
+    "manual": null
+  },
+  {
+    "source": "added",
+    "asset": "Open Text Corporation",
+    "ticker": "OTEX",
+    "ccy": "USD",
+    "current": 22.63,
+    "macro_lo": 21.75,
+    "macro_hi": 44.97,
+    "ttm_pe": 8.6,
+    "fwd_pe": 5.3,
+    "de": 1.45,
+    "margin": 0.1254,
+    "notes": "[Auto-added via --add OTEX]",
     "rtype": "STOCK",
     "manual": null
   }

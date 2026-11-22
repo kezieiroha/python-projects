@@ -31,6 +31,24 @@ class RowType:
     #: Row kinds that represent a company whose financials should be assessed.
     EQUITY_LIKE = frozenset({STOCK, ISA, SIPP, MANUAL})
 
+    #: Row kinds that are pooled funds. Funds have no company fundamentals, so
+    #: they are exempt from the fundamentals quality gate.
+    FUNDS = frozenset({ETF, SIPP})
+
+
+class Direction:
+    """Which way a row's alert levels trigger.
+
+    ``DOWN`` is the normal case: an alert level is hit when price falls to it.
+    ``UP`` is for gauges where a higher reading is the alert, such as VIX (more
+    fear) or the 10Y yield (tighter money). It is stored per row as the optional
+    ``direction`` JSON key; rows without the key are ``DOWN``.
+    """
+
+    DOWN = "down"
+    UP = "up"
+    ALL = frozenset({DOWN, UP})
+
 
 # Field order used for JSON round-trips. Kept explicit so persisted files stay
 # byte-stable regardless of dataclass declaration order.
@@ -39,10 +57,7 @@ ROW_FIELDS = (
     "ttm_pe", "fwd_pe", "de", "margin", "notes", "rtype", "manual",
 )
 
-MACRO_SWING_FIELDS = (
-    "ticker", "macro_lo", "macro_hi", "current",
-    "al1_display", "status", "bg", "font_color",
-)
+MACRO_SWING_FIELDS = ("ticker", "macro_lo", "macro_hi")
 
 
 def _clean(value):
@@ -55,7 +70,8 @@ class PortfolioRow:
 
     ``extra`` carries any JSON keys this model does not know about, so a field
     added by hand to ``portfolio_rows.json`` survives a load/save cycle instead of
-    being silently dropped.
+    being silently dropped. Optional keys such as ``direction`` and ``source``
+    live there so rows that do not use them stay unchanged on disk.
     """
 
     asset: str = ""
@@ -73,7 +89,7 @@ class PortfolioRow:
     manual: Any = None
     extra: Mapping[str, Any] = field(default_factory=dict)
 
-    # ── Construction and persistence ─────────────────────────────────────────
+    # -- Construction and persistence -----------------------------------------
     @classmethod
     def from_dict(cls, data):
         """Build a row from a JSON object, retaining unknown keys."""
@@ -93,13 +109,13 @@ class PortfolioRow:
         """Return a copy with named fields changed and ``extra`` preserved."""
         return replace(self, **changes)
 
-    # ── Identity ─────────────────────────────────────────────────────────────
+    # -- Identity -------------------------------------------------------------
     def identity(self, index=0):
         """Key that keeps same-ticker rows distinct within a run.
 
         Identity is derived rather than persisted on purpose. A ticker is a
-        market-data lookup key, not a row identity — placeholder tickers such as
-        ``TBC`` are shared by several pre-IPO assets — so the asset name and the
+        market-data lookup key, not a row identity (placeholder tickers such as
+        ``TBC`` are shared by several pre-IPO assets), so the asset name and the
         row's position disambiguate them. Storing a generated id in the JSON
         would make the files less pleasant to hand-edit for no behavioural gain.
         """
@@ -111,7 +127,7 @@ class PortfolioRow:
             return False
         return _clean(self.asset) in items or _clean(self.ticker) in items
 
-    # ── Convenience predicates used by renderers ─────────────────────────────
+    # -- Convenience predicates used by renderers -----------------------------
     @property
     def is_section(self):
         return self.rtype == RowType.SECTION
@@ -119,6 +135,10 @@ class PortfolioRow:
     @property
     def is_etf(self):
         return self.rtype == RowType.ETF
+
+    @property
+    def is_fund(self):
+        return self.rtype in RowType.FUNDS
 
     @property
     def is_manual(self):
@@ -129,6 +149,11 @@ class PortfolioRow:
         return bool(self.macro_lo and self.macro_hi)
 
     @property
+    def direction(self):
+        """Alert direction from the optional ``direction`` key; defaults to down."""
+        return str(self.extra.get("direction") or Direction.DOWN).lower()
+
+    @property
     def na_label(self):
         """Placeholder shown when a fundamentals value is unavailable."""
         return "ETF" if self.is_etf else "N/A"
@@ -136,16 +161,15 @@ class PortfolioRow:
 
 @dataclass(frozen=True)
 class MacroSwingRow:
-    """A curated historical example on the Fib Methodology sheet."""
+    """A historical macro swing shown on the Fib Methodology sheet.
+
+    Only the anchors are stored. Current price, AL1 and status are computed at
+    run time from live data, so this sheet can no longer show stale values.
+    """
 
     ticker: str = ""
     macro_lo: float | None = None
     macro_hi: float | None = None
-    current: float | None = None
-    al1_display: str | None = None
-    status: str | None = None
-    bg: str | None = None
-    font_color: str | None = None
 
     @classmethod
     def from_dict(cls, data):
@@ -200,7 +224,7 @@ class EpsView(NamedTuple):
     """Trailing EPS plus where it came from.
 
     Only Alpha Vantage counts as independent verification. yfinance trailing EPS
-    and the price ÷ P/E fallback are both unverified, and the workbook marks them
+    and the price / P/E fallback are both unverified, and the workbook marks them
     with a ``~`` prefix so a reader can tell the difference.
     """
 
@@ -224,3 +248,32 @@ class EpsView(NamedTuple):
             return values
         eps, verified = values
         return cls(eps, cls.ALPHA_VANTAGE if verified else cls.YFINANCE)
+
+
+class D5View(NamedTuple):
+    """5-period EMA of completed daily closes, for the D5 EMA Flag column.
+
+    Every value comes from completed sessions only. ``intraday`` records whether
+    the run happened while that exchange's session was still open, in which
+    case the row's Current price is an intraday price and the unfinished daily
+    bar was dropped before computing D5.
+    """
+
+    close: float           # latest completed session close
+    d5: float              # D5 EMA as of that close
+    prev_close: float      # previous completed session close
+    prev_d5: float         # D5 EMA as of the previous close
+    session_date: str      # ISO date of the latest completed session
+    exchange: str          # exchange label, e.g. "LSE" or "US"
+    intraday: bool = False
+
+    def scaled(self, factor):
+        """Return a copy with every price multiplied by ``factor`` (unit fix)."""
+        if factor == 1:
+            return self
+        return self._replace(
+            close=round(self.close * factor, 4),
+            d5=round(self.d5 * factor, 4),
+            prev_close=round(self.prev_close * factor, 4),
+            prev_d5=round(self.prev_d5 * factor, 4),
+        )

@@ -10,17 +10,28 @@ from __future__ import annotations
 
 import json
 
+from modules.calculations import validate_manual_levels
 from modules.models import MacroSwingRow, PortfolioRow
 
 
 def load_portfolio_rows(path):
-    """Load editable portfolio rows from workbook/data/portfolio_rows.json."""
+    """Load editable portfolio rows from workbook/data/portfolio_rows.json.
+
+    Each row's ``direction`` and manual-level order are validated on load. A
+    contradiction would silently invert the zone logic, so it stops the run
+    with the row named rather than rendering a wrong status.
+    """
     try:
         with open(path, "r", encoding="utf-8") as fh:
             data = json.load(fh)
         if not isinstance(data, list):
             raise ValueError("expected a list of row objects")
-        return [PortfolioRow.from_dict(item) for item in data if isinstance(item, dict)]
+        rows = [PortfolioRow.from_dict(item) for item in data if isinstance(item, dict)]
+        for row in rows:
+            problem = validate_manual_levels(row)
+            if problem:
+                raise ValueError(f"row {row.ticker or row.asset!r}: {problem}")
+        return rows
     except Exception as ex:
         raise RuntimeError(f"Could not load portfolio rows from {path}: {ex}") from ex
 

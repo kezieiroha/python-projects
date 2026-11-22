@@ -2,25 +2,43 @@
 
 Owns the order in which rows are loaded, mutated, overlaid with live data, and
 persisted. Nothing here touches openpyxl, and nothing here calls a provider
-directly — live data arrives as an already-normalized ``LiveMarketData``.
+directly: live data arrives as an already-normalized ``LiveMarketData``.
 
 Ordering matters and is deliberate:
 
 1. Portfolio rows load from the single persisted collection.
 2. ``--remove`` deletions are saved before any live overlay.
-3. ``--add`` inserts and added-source refreshes are saved before any live overlay.
-4. The live overlay is applied to the in-memory rows only.
+3. ``--add`` inserts and added-source refreshes are saved before any live overlay,
+   with prices already in each row's stored unit.
+4. Live values stay keyed by ticker in the provider's currency. Each row reads
+   them converted into its own unit, or withheld when the currency cannot be
+   converted, so rows sharing a ticker in different units are each correct.
+5. The live overlay is applied to the in-memory rows only.
+6. The caller then applies the effective ATH, again in memory only.
+
+Nothing from steps 4 to 6 is ever written back to the JSON.
 """
 
 from __future__ import annotations
 
-from modules.calculations import classify_zone
+from modules.calculations import (
+    effective_ath,
+    is_known_unit,
+    note_issues,
+    unit_factor,
+)
 from modules.data_store import (
     load_portfolio_rows,
     save_portfolio_rows,
 )
 from modules.market_data import fetch_ticker
-from modules.models import PortfolioRow, RowType
+from modules.models import Direction, PortfolioRow, RowType
+
+#: A highest close more than this multiple of the stored ATH is treated as a
+#: probable unit or data error rather than a genuine new high. A pence/pounds
+#: error is 100x; genuine rallies past a stale ATH have reached about 3.5x
+#: (LUNR), so the limit sits well between the two.
+ATH_JUMP_LIMIT = 20.0
 
 
 def _ticker_of(row):
@@ -48,12 +66,74 @@ def apply_removals(rows, removals, path, warn=print):
     return kept, removed
 
 
+def report_unit_conversions(rows, live, warn=print):
+    """Report, per row, any live values converted or withheld for its unit.
+
+    Live data stays keyed by ticker in the provider's currency; each row reads
+    it through ``LiveMarketData.*_for(row)``, which converts into ``row.ccy``.
+    Two rows can share a ticker in different units (the same London line in
+    pounds and in pence), so the decision is made for each row, never once per
+    ticker.
+
+    A pence/pounds difference is scaled. A genuine currency difference (a CAD
+    quote on a row stored as USD) cannot be scaled, so that row's live price,
+    moving averages, D5, highest close and analyst target are withheld and it
+    keeps its stored values. The warning names the row, both currencies and the
+    stored fallback price. Nothing wrong is shown, so the run continues.
+    """
+    for row in rows:
+        if row.is_section or row.ticker not in live.currency:
+            continue
+        provider_ccy = live.currency[row.ticker]
+        factor = live.unit_factor_for(row)
+        label = f"{row.ticker} ({row.asset})"
+        if factor is None:
+            warn(f"[units] {label}: provider quotes {provider_ccy} but the row is "
+                 f"stored as {row.ccy}; live prices withheld, using stored price "
+                 f"{row.current}. Check ccy and anchors in portfolio_rows.json.")
+        elif factor != 1:
+            warn(f"[units] {label}: provider quotes {provider_ccy}, row stored as "
+                 f"{row.ccy}; live values scaled by {factor}.")
+
+
+def verified_ttm_pe(row, current, live):
+    """TTM P/E from Alpha Vantage verified EPS, or None to keep the provider P/E.
+
+    Returns a (recompute, value) pair. ``recompute`` is False when the provider
+    P/E must be kept: no verified EPS, no price, or units that are not both
+    known and convertible. Both units are checked explicitly first because
+    ``unit_factor`` returns 1 for an unknown unit, which here would silently
+    divide a pence price by a pounds EPS (a 100x P/E).
+
+    A verified negative EPS always clears the P/E (value None): a loss-maker
+    has no meaningful P/E, and the sign does not depend on the unit.
+    """
+    eps = live.eps.get(row.ticker)
+    if not (eps and eps[1] and current):
+        return False, None
+    value = eps[0]
+    if value <= 0:
+        return True, None
+    eps_unit = live.eps_currency.get(row.ticker)
+    if not (is_known_unit(row.ccy) and is_known_unit(eps_unit)):
+        return False, None
+    factor = unit_factor(row.ccy, eps_unit)   # price in row unit -> EPS unit
+    if factor is None:
+        return False, None
+    return True, round(current * factor / value, 1)
+
+
 def apply_live_overlay(rows, live):
     """Overlay live price and fundamentals onto rows.
 
     Historical Fib anchors, notes, and identity fields are never changed here.
-    Fundamentals only override when the live value is not None, which preserves
-    the deliberate N/A intent on ETF and pre-IPO rows.
+    The price is converted into each row's own unit; a row whose currency
+    cannot be converted keeps its stored price. Fundamentals ratios are
+    dimensionless and only override when the live value is not None, which
+    preserves the deliberate N/A intent on ETF and pre-IPO rows.
+
+    TTM P/E is recomputed from verified EPS only when ``verified_ttm_pe``
+    allows it; otherwise the provider P/E stands.
     """
     if not live.has_row_overlay():
         return rows
@@ -64,8 +144,9 @@ def apply_live_overlay(rows, live):
 
         # Rows with no price and no entry in the fetch list (CRCL, TBC) simply
         # never appear in live.prices, so they are left alone.
-        if row.ticker in live.prices:
-            changes["current"] = live.prices[row.ticker]
+        price = live.price_for(row)
+        if price is not None:
+            changes["current"] = price
 
         if row.ticker in live.fundamentals:
             ttm_pe, fwd_pe, de, margin = live.fundamentals[row.ticker]
@@ -76,26 +157,82 @@ def apply_live_overlay(rows, live):
                 if value is not None:
                     changes[name] = value
 
+        recompute, pe = verified_ttm_pe(row, changes.get("current", row.current), live)
+        if recompute:
+            changes["ttm_pe"] = pe
+
         updated.append(row.replace(**changes) if changes else row)
     return updated
 
 
-def build_added_row(snapshot):
-    """Turn a provider snapshot into a portfolio row with a generated note."""
-    zone = classify_zone(snapshot.price, snapshot.bear_low, snapshot.cycle_high)
-    ttm_pe, fwd_pe, de, margin = snapshot.fundamentals
-    w20, w50, m20, m50, d200 = snapshot.moving_averages
+def apply_effective_ath(rows, live, warn=print):
+    """Lift stale stored ATHs to the highest close since the anchor low.
 
-    note = (
-        f"{zone.label} "
-        f"Macro Fib (2022 low {snapshot.bear_low} -> ATH {snapshot.cycle_high}): "
-        f"AL1={zone.al1} | AL2={zone.al2} | AL3={zone.al3} | 78.6%={zone.d4}. "
-        f"D200={d200} | W20={w20} / W50={w50} / M20={m20} / M50={m50}. "
-        f"TTM P/E={ttm_pe or 'N/A'} | Fwd P/E={fwd_pe or 'N/A'} | "
-        f"D/E={de or 'N/A'} | "
-        f"Net margin={round(margin * 100, 1) if margin else 'N/A'}%. "
-        f"[Auto-added via --add {snapshot.ticker}]"
-    )
+    Effective ATH = max(stored ATH, highest completed close since ANCHOR_START),
+    with the highest close converted into each row's own unit. Applied in
+    memory only, so Fib levels, status and upside use it on every sheet while
+    the JSON stays as curated. Returns (rows, updates) where ``updates`` maps
+    ticker to (stored_ath, effective_ath) for every superseded value, and each
+    row is reported so the JSON can be updated by hand.
+
+    Manual rows and up-direction rows are skipped: their levels are not derived
+    from an ATH. A row whose currency cannot be converted has no highest close
+    and keeps its stored ATH.
+    """
+    updates, reported, out = {}, set(), []
+    for row in rows:
+        ticker = _ticker_of(row)
+        max_close = live.max_close_for(row)
+        if (row.is_section or row.is_manual or not row.has_fib_anchors
+                or row.direction != Direction.DOWN or max_close is None
+                or max_close <= row.macro_hi):
+            out.append(row)
+            continue
+
+        if max_close > ATH_JUMP_LIMIT * row.macro_hi:
+            warn(f"[ATH] {ticker}: highest close {max_close} is more than "
+                 f"{ATH_JUMP_LIMIT:g}x the stored ATH {row.macro_hi}; ignored. "
+                 f"Check units.")
+            out.append(row)
+            continue
+
+        new_hi = effective_ath(row.macro_hi, max_close)
+        if (ticker, row.ccy) not in reported:
+            reported.add((ticker, row.ccy))
+            warn(f"[ATH] {ticker} ({row.ccy}): stored cycle ATH {row.macro_hi} "
+                 f"superseded by highest close {new_hi}. Update macro_hi in "
+                 f"portfolio_rows.json.")
+        updates.setdefault(ticker, (row.macro_hi, new_hi))
+        out.append(row.replace(macro_hi=new_hi))
+    return out, updates
+
+
+def report_note_issues(rows, warn=print):
+    """Report every note or section header that quotes a price or a status.
+
+    Returns the number of rows reported. Notes are free-text thesis only; the
+    generator computes prices, levels and statuses on every run.
+    """
+    count = 0
+    for row in rows:
+        text = row.asset if row.is_section else row.notes
+        issues = note_issues(text)
+        if issues:
+            count += 1
+            label = "section" if row.is_section else (row.ticker or row.asset)
+            shown = ", ".join(dict.fromkeys(issues))[:160]
+            warn(f"[notes] {label}: contains {shown}")
+    return count
+
+
+def build_added_row(snapshot):
+    """Turn a provider snapshot into a portfolio row.
+
+    The note carries only the provenance tag. Status, prices and levels are
+    computed on every run, so writing them into the note would make it stale
+    from the next run onward.
+    """
+    ttm_pe, fwd_pe, de, margin = snapshot.fundamentals
     return PortfolioRow(
         asset=snapshot.name,
         ticker=snapshot.ticker,
@@ -107,32 +244,56 @@ def build_added_row(snapshot):
         fwd_pe=fwd_pe,
         de=de,
         margin=margin,
-        notes=note,
+        notes=f"[Auto-added via --add {snapshot.ticker}]",
         rtype=RowType.STOCK,
         extra={"source": "added"},
     )
 
 
 def register_snapshot(live, snapshot):
-    """Record a ``--add`` snapshot in live data so the run header reflects it."""
+    """Record a ``--add`` snapshot in live data so every sheet can use it."""
     live.prices[snapshot.ticker] = snapshot.price
     live.moving_averages[snapshot.ticker] = snapshot.moving_averages
     live.fundamentals[snapshot.ticker] = snapshot.fundamentals
+    live.currency[snapshot.ticker] = snapshot.currency
     if snapshot.analyst:
         live.analyst[snapshot.ticker] = snapshot.analyst
+    if snapshot.d5 is not None:
+        live.d5[snapshot.ticker] = snapshot.d5
+    if snapshot.max_close is not None:
+        live.max_close[snapshot.ticker] = snapshot.max_close
 
 
-def refresh_portfolio_rows(config, live, rows, rec_map, warn=print, fetch=fetch_ticker):
+def refreshed_price(row, snapshot):
+    """The snapshot price in the row's stored unit, or the row's own price.
+
+    The JSON must hold prices in the row's ``ccy``, because offline runs compare
+    them with the stored anchors directly. A pence/pounds difference is scaled;
+    a currency difference that cannot be scaled keeps the stored price.
+    """
+    factor = unit_factor(snapshot.currency, row.ccy)
+    if factor is None or snapshot.price is None:
+        return row.current
+    return snapshot.price if factor == 1 else round(snapshot.price * factor, 4)
+
+
+def refresh_portfolio_rows(config, live, rows, rec_map, warn=print, fetch=fetch_ticker,
+                           aliases=None):
     """Refresh source=added rows and process ``--add`` requests.
 
     Ticker is a provider lookup key, not a row identity. Refreshing a ticker
     overlays only price and fundamentals onto every matching row, preserving each
     row's own asset name, anchors, notes, type, and unknown JSON fields.
 
+    ``aliases`` is ``yahoo_aliases`` from market_sources.json. The fetch uses
+    the aliased provider symbol (``BTC-USD`` for ``BTC``), matching the batch
+    refresh, while the portfolio ticker stays the storage and matching key.
+
     Returns a new list; the caller's list is never mutated. The file is only
     rewritten when a value actually changed, so an unchanged refresh leaves the
     tracked JSON alone instead of dirtying it on every run.
     """
+    aliases = aliases or {}
     rows = list(rows)
     known_tickers = {_ticker_of(row) for row in rows if _ticker_of(row)}
 
@@ -154,13 +315,14 @@ def refresh_portfolio_rows(config, live, rows, rec_map, warn=print, fetch=fetch_
 
     if not config.live_refresh:
         if config.add_tickers:
-            warn("[--add] --offline was used — cannot fetch new tickers. "
+            warn("[--add] --offline was used; cannot fetch new tickers. "
                  "Previously persisted tickers will still be included.")
         return rows, False
 
     changed = False
     for ticker in queue:
-        snapshot = fetch(ticker, rec_map, warn=warn)
+        snapshot = fetch(ticker, rec_map, warn=warn,
+                         symbol=aliases.get(ticker, ticker))
         if snapshot is None:
             if ticker not in known_tickers:
                 warn(f"[--add {ticker}] Not persisted because no prior row exists.")
@@ -168,7 +330,7 @@ def refresh_portfolio_rows(config, live, rows, rec_map, warn=print, fetch=fetch_
 
         register_snapshot(live, snapshot)
         warn(
-            f"[--add {ticker}] Fetched OK — cur={snapshot.price}, "
+            f"[--add {ticker}] Fetched OK: cur={snapshot.price}, "
             f"ATH={snapshot.cycle_high}, 2022 low={snapshot.bear_low}"
         )
 
@@ -178,13 +340,14 @@ def refresh_portfolio_rows(config, live, rows, rec_map, warn=print, fetch=fetch_
             changed = True
         else:
             # Refresh every row carrying this ticker, preserving each row's own
-            # identity, anchors, and notes.
+            # identity, anchors, and notes. The price is saved in the row's own
+            # unit; the ratios are dimensionless and saved as they are.
             ttm_pe, fwd_pe, de, margin = snapshot.fundamentals
             for idx, row in enumerate(rows):
                 if _ticker_of(row) != ticker:
                     continue
                 refreshed = row.replace(
-                    current=snapshot.price,
+                    current=refreshed_price(row, snapshot),
                     ttm_pe=ttm_pe,
                     fwd_pe=fwd_pe,
                     de=de,
@@ -202,15 +365,19 @@ def refresh_portfolio_rows(config, live, rows, rec_map, warn=print, fetch=fetch_
     return rows, changed
 
 
-def build(config, live, rec_map, warn=print, fetch=fetch_ticker):
-    """Assemble the final portfolio rows for rendering."""
+def build(config, live, rec_map, warn=print, fetch=fetch_ticker, aliases=None):
+    """Assemble the final portfolio rows for rendering.
+
+    ``aliases`` maps portfolio tickers to provider symbols for ``--add``.
+    """
     rows = load_portfolio_rows(config.portfolio_rows_path)
     rows, removed = apply_removals(
         rows, config.remove_items, config.portfolio_rows_path, warn=warn
     )
     rows, _changed = refresh_portfolio_rows(
-        config, live, rows, rec_map, warn=warn, fetch=fetch
+        config, live, rows, rec_map, warn=warn, fetch=fetch, aliases=aliases
     )
+    report_unit_conversions(rows, live, warn=warn)
     rows = apply_live_overlay(rows, live)
 
     if config.remove_items and not removed:

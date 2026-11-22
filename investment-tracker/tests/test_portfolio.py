@@ -104,7 +104,7 @@ class AddedRowRefreshTest(unittest.TestCase):
 
             refreshed, _changed = portfolio.refresh_portfolio_rows(
                 cfg, live, rows, {}, warn=lambda *_: None,
-                fetch=lambda ticker, rec_map, warn=None: snapshot(ticker),
+                fetch=lambda ticker, rec_map, warn=None, symbol=None: snapshot(ticker),
             )
 
             rows = [row.to_dict() for row in refreshed]
@@ -125,7 +125,7 @@ class AddedRowRefreshTest(unittest.TestCase):
 
             refreshed, _changed = portfolio.refresh_portfolio_rows(
                 cfg, live, [], {}, warn=lambda *_: None,
-                fetch=lambda ticker, rec_map, warn=None: snapshot(ticker, name="New Co"),
+                fetch=lambda ticker, rec_map, warn=None, symbol=None: snapshot(ticker, name="New Co"),
             )
 
             rows = [row.to_dict() for row in refreshed]
@@ -168,7 +168,7 @@ class AddedRowRefreshTest(unittest.TestCase):
 
             refreshed, _changed = portfolio.refresh_portfolio_rows(
                 cfg, LiveMarketData(), rows, {}, warn=lambda *_: None,
-                fetch=lambda ticker, rec_map, warn=None: None,
+                fetch=lambda ticker, rec_map, warn=None, symbol=None: None,
             )
 
             rows = [row.to_dict() for row in refreshed]

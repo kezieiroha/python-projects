@@ -29,7 +29,9 @@ def build_workbook(rows, macro_swing_rows, ctx):
     wb = Workbook()
 
     alert_levels.render(wb.active, rows, ctx)
-    methodology.render(wb.create_sheet(methodology.SHEET_TITLE), macro_swing_rows)
+    methodology.render(
+        wb.create_sheet(methodology.SHEET_TITLE), macro_swing_rows, rows, ctx
+    )
     summary.render(wb.create_sheet(summary.SHEET_TITLE, 0), rows, ctx)
     help_sheet.render(wb.create_sheet(help_sheet.SHEET_TITLE))
 

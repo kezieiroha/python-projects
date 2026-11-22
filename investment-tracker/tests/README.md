@@ -22,17 +22,18 @@ python3 tests/live_smoke.py
 
 ## Test Files
 
-66 collected tests across eight modules.
+119 collected tests across nine modules.
 
 | File | Tests | Purpose |
 |---|---:|---|
 | `test_phase0_contract.py` | 4 | End-to-end offline workbook contract. Verifies import safety, all four sheets, closed D1-D6 regressions, snapshot cells, representative formatting, same-run removal, and duplicate added-ticker rendering. |
 | `test_calculations.py` | 2 | Pure Fib, upside-to-ATH, and alert-zone classification rules. |
 | `test_cli.py` | 12 | Argument parsing, injectable run clock, `--offline` handling, exclusion of tickers from the fetch list, and the full/partial/static data-source label. |
-| `test_data_store.py` | 10 | JSON row loading/saving, unknown-field preservation, duplicate ticker preservation, removal matching, and `PortfolioRow` identity and predicates. |
+| `test_data_store.py` | 11 | JSON row loading/saving, unknown-field preservation, duplicate ticker preservation, removal matching, and `PortfolioRow` identity and predicates. |
 | `test_market_data.py` | 9 | Provider data normalization for P/E, D/E, margin, and float coercion, plus the shared moving-average and Fib-anchor computation and the Alpha Vantage call budget. |
 | `test_market_orchestration.py` | 16 | The code that calls the provider, driven through injectable clients: symbol aliasing, per-ticker failure isolation, `.info` price override, EPS provenance, and Alpha Vantage rate-limit and sleep behaviour. |
 | `test_market_sources.py` | 2 | Data-driven macro/sentiment ticker classification sets and defaults. |
+| `test_alert_fixes.py` | 52 | Effective ATH, per-row pence/pounds conversion and withheld currency mismatches (including rows sharing a ticker in both orders), EPS units and the guarded P/E recompute, the EPS cell format, missing-symbol history, `--add` refresh units and aliases, up-direction manual levels, inclusive level boundaries, note price/status detection, DATA CHECK rules, single-ticker and one-symbol-batch closes, the Daily Summary quality gate, broken anchor lows, completed-session closes, the D5 EMA flag, and the Alpha Vantage P/E preference. |
 | `test_portfolio.py` | 11 | Unified portfolio-row assembly, `--add` refresh behavior, same-ticker preservation, and live overlays that do not rewrite anchors/notes. |
 | `live_smoke.py` | — | Not collected. Live provider check, run explicitly. |
 

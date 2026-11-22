@@ -68,18 +68,30 @@ class DataStoreTest(unittest.TestCase):
                 load_portfolio_rows(missing)
             self.assertIn(str(missing), str(ctx.exception))
 
-    def test_macro_swing_rows_load_as_named_records(self):
+    def test_macro_swing_rows_load_anchors_only(self):
+        """Current price, AL1 and status are computed, so stale stored copies
+        of them (the old file shape) are ignored on load."""
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "macro.json"
             path.write_text(json.dumps([
                 {"ticker": "MSTR", "macro_lo": 13.26, "macro_hi": 543.0,
-                 "current": 132.36, "al1_display": "$340.64",
-                 "status": "BELOW", "bg": "FFCCCC", "font_color": "880000"}
+                 "current": 132.36, "status": "stale"}
             ]))
             swing = load_macro_swing_data(path)[0]
             self.assertEqual(swing.ticker, "MSTR")
             self.assertEqual(swing.macro_hi, 543.0)
-            self.assertEqual(swing.font_color, "880000")
+            self.assertFalse(hasattr(swing, "current"))
+
+    def test_manual_levels_contradicting_direction_fail_loudly(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "portfolio_rows.json"
+            path.write_text(json.dumps([
+                {"asset": "VIX", "ticker": "VIX", "rtype": "MANUAL",
+                 "direction": "up", "manual": [40.0, 30.0, 20.0]}
+            ]))
+            with self.assertRaises(RuntimeError) as ctx:
+                load_portfolio_rows(path)
+            self.assertIn("VIX", str(ctx.exception))
 
 
 class PortfolioRowTest(unittest.TestCase):

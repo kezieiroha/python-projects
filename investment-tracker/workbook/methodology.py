@@ -1,13 +1,15 @@
 """Fib Methodology sheet.
 
-Explains the alert-level framework and shows curated historical macro swing
-examples from workbook/data/macro_swing_data.json. These rows are illustrative; the
-operational alert rows live on Alert Levels and Daily Summary.
+Explains the alert-level framework and shows historical macro swing examples.
+Only the anchors are stored (workbook/data/macro_swing_data.json). Current
+price comes from this run's portfolio rows (live when refreshed), the cycle ATH
+is the effective ATH, and AL1 and status are computed with the same
+classify_zone used everywhere else, so this sheet cannot go stale.
 """
 
 from openpyxl.utils import get_column_letter
 
-from modules.calculations import fib
+from modules.calculations import RANK_DEEP, classify_zone, effective_ath, fib
 from workbook.styles import (
     AL1_BG,
     AL2_BG,
@@ -18,6 +20,7 @@ from workbook.styles import (
     GRN,
     RED_C,
     WHITE,
+    ZONE_STYLES,
     aln,
     bdr,
     fill,
@@ -27,32 +30,50 @@ from workbook.styles import (
 SHEET_TITLE = "Fib Methodology"
 WIDTHS = [22, 14, 14, 14, 13, 55]
 
-# Worked example uses META's macro swing: 2022 low 87.40 -> cycle ATH 794.38.
+# Worked example uses META's macro swing: 2022 low 87.40 to cycle ATH 794.38.
 EXAMPLE_LOW = 87.40
 EXAMPLE_HIGH = 794.38
 
 LEVELS = [
-    ("AL1 — Accumulate", "38.2%", "ATH−(Range×0.382)", 0.382,
+    ("AL1 — Accumulate", "38.2%", "ATH-(Range x 0.382)", 0.382,
      "First macro pullback",
      "Start building. Institutional first stop. ~1/3 position.",
      AL1_BG, GRN),
-    ("AL2 — Strong Buy", "50.0%", "ATH−(Range×0.500)", 0.500,
+    ("AL2 — Strong Buy", "50.0%", "ATH-(Range x 0.500)", 0.500,
      "Macro midpoint",
      "Increase size. 50% retrace = major support. ~1/3 more.",
      AL2_BG, AMB),
-    ("AL3 — Back Up Truck", "61.8%", "ATH−(Range×0.618)", 0.618,
+    ("AL3 — Back Up Truck", "61.8%", "ATH-(Range x 0.618)", 0.618,
      "Golden ratio retrace",
      "Maximum conviction. Final third. Historically rare at macro scale.",
      AL3_BG, RED_C),
-    ("Deep Value", "78.6%", "ATH−(Range×0.786)", 0.786,
+    ("Deep Value", "78.6%", "ATH-(Range x 0.786)", 0.786,
      "Near full retrace",
      "Extreme caution OR maximum size if thesis intact. Structural breakdown risk.",
      D4_BG, "880000"),
 ]
 
 
-def render(ws, macro_swing_rows):
-    """Write the Fib Methodology sheet."""
+def priced_rows(rows):
+    """Map ticker to this run's first priced portfolio row for that ticker.
+
+    The row, not just its price, is returned so the swing table reads the
+    current price and the highest close in that same row's unit.
+    """
+    priced = {}
+    for row in rows:
+        if row.is_section or row.current is None or not row.ticker:
+            continue
+        priced.setdefault(row.ticker, row)
+    return priced
+
+
+def render(ws, macro_swing_rows, rows, ctx):
+    """Write the Fib Methodology sheet.
+
+    ``rows`` are the run's prepared portfolio rows (source of current price);
+    ``ctx`` supplies the highest close used for the effective ATH.
+    """
     def write(row, values, bold=False, bg=None, colors=None):
         for ci, val in enumerate(values, 1):
             c = ws.cell(row=row, column=ci, value=val)
@@ -86,27 +107,36 @@ def render(ws, macro_swing_rows):
         row += 1
 
     row += 1
-    write(row, ["MACRO SWING ANCHORS (from workbook/data/macro_swing_data.json)",
+    write(row, [f"MACRO SWING ANCHORS  |  Current = {ctx.data_source}",
                 "", "", "", "", ""], bold=True, bg="F5F5F5")
     row += 1
     write(row, ["Ticker", "2022 Bear Low", "Cycle ATH", "Current",
-                "Macro AL1", "Macro Status"],
+                "Macro AL1", "Macro Status (computed)"],
           bold=True, bg="37474F", colors=["FFFFFF"] * 6)
     row += 1
 
+    priced = priced_rows(rows)
     for swing in macro_swing_rows:
-        fc = swing.font_color
+        source = priced.get(swing.ticker)
+        current = source.current if source else None
+        max_close = ctx.max_close_for(source) if source else None
+        macro_hi = effective_ath(swing.macro_hi, max_close)
+        zone = classify_zone(current, swing.macro_lo, macro_hi)
+        bg, fc, _short, _plain = ZONE_STYLES[zone.rank]
+        if zone.rank == RANK_DEEP:
+            # The summary's dark deep-value fill would hide black ticker text.
+            bg, fc = D4_BG, "880000"
         write(
             row,
             [
                 swing.ticker,
                 f"{swing.macro_lo:,.2f}" if swing.macro_lo else "N/A",
-                f"{swing.macro_hi:,.2f}" if swing.macro_hi else "N/A",
-                f"{swing.current:,.2f}" if swing.current else "N/A",
-                swing.al1_display,
-                swing.status,
+                f"{macro_hi:,.2f}" if macro_hi else "N/A",
+                f"{current:,.2f}" if current else "N/A",
+                f"{zone.al1:,.2f}" if zone.al1 else "N/A",
+                zone.label if current else "No current price this run",
             ],
-            bg=swing.bg,
+            bg=bg,
             colors=["000000", "0000FF", "0000FF", "000000", fc, fc],
         )
         row += 1

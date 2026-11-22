@@ -1,27 +1,31 @@
-"""Alert Levels sheet — the detailed dashboard.
+"""Alert Levels sheet: the detailed dashboard.
 
 Column map:
     A=Asset  B=Ticker  C=CCY  D=Current
-    E=2022 Bear Low  F=Cycle ATH  G=Fib Range
+    E=2022 Bear Low  F=Cycle ATH (effective)  G=Fib Range
     H=AL1/38.2%  I=AL2/50%  J=AL3/61.8%  K=78.6%
     L=Upside  M=Status
     N=TTM_PE  O=TTM_EPS  P=Fwd_PE  Q=Fwd_EPS  R=DE  S=Margin
-    T=W20 EMA  U=W50 EMA  V=M20 EMA  W=M50 EMA  X=D200 SMA  Y=MA Trend
-    Z=Thesis / Notes  AA=Analyst Consensus  AB=Analyst Price Target
+    T=W20 EMA  U=W50 EMA  V=M20 EMA  W=M50 EMA  X=D200 SMA  Y=D5 EMA Flag
+    Z=MA Trend  AA=Thesis / Notes  AB=Analyst Consensus  AC=Analyst Price Target
 
 All Fib levels are written as snapshot values. Historical anchor edits belong in
 workbook/data/portfolio_rows.json, not in generated workbook cells.
+
+Every status, zone and red flag on this sheet comes from the same shared
+calculations the Daily Summary uses (classify_row and assess_fundamentals), so
+the two tabs cannot disagree.
 """
 
 from openpyxl.utils import get_column_letter
 
 from modules.calculations import (
-    classify_zone,
+    classify_row,
     fib,
     ma_trend_text,
     upside_to_ath,
 )
-from modules.models import RowType
+from modules.models import Direction, RowType
 from workbook.styles import (
     AL1_BG,
     AL2_BG,
@@ -29,6 +33,8 @@ from workbook.styles import (
     ALT,
     AMB,
     BLUE,
+    CHECK_BG,
+    CHECK_FC,
     D4_BG,
     DARK,
     FIB_BG,
@@ -43,12 +49,16 @@ from workbook.styles import (
     SECT,
     SIPP_BG,
     WHITE,
+    ZONE_STYLES,
     aln,
     bdr,
     fill,
     fnt,
     ma_cell_color,
     ma_num_fmt,
+    eps_text,
+    money,
+    write_d5_cell,
 )
 
 SHEET_TITLE = "Alert Levels"
@@ -66,13 +76,22 @@ COLS = [
     "TTM\nP/E", "TTM\nEPS", "Fwd\nP/E", "Fwd\nEPS", "D/E", "Net\nMargin",
     "W20\nEMA", "W50\nEMA", "M20\nEMA", "M50\nEMA",
     "D200\nSMA",
+    "D5 EMA\nFlag",
     "MA\nTrend",
     "Thesis / Notes",
     "Analyst\nConsensus",
     "Analyst\nPrice Target",
 ]
 WIDTHS = [27, 9, 5, 11, 11, 11, 9, 14, 14, 15, 13, 9, 12, 8, 8, 8, 8, 7, 8,
-          9, 9, 9, 9, 9, 12, 52, 13, 14]
+          9, 9, 9, 9, 9, 12, 12, 52, 13, 14]
+LAST_COL = get_column_letter(len(COLS))   # "AC"
+
+# Column numbers used by more than one writer.
+COL_D5 = 25
+COL_TREND = 26
+COL_NOTES = 27
+COL_CONSENSUS = 28
+COL_TARGET = 29
 
 GROUP_FILLS = {
     (1, 4): DARK,
@@ -80,9 +99,9 @@ GROUP_FILLS = {
     (8, 11): PURPLE,
     (12, 13): "1B5E20",
     (14, 19): "00695C",   # fundamentals: TTM P/E, TTM EPS, Fwd P/E, Fwd EPS, D/E, Net Margin
-    (20, 25): MA_HEAD,    # MAs: W20, W50, M20, M50, D200, MA Trend
-    (26, 26): DARK,       # Thesis/Notes
-    (27, 28): "283593",   # indigo — Analyst Consensus (AA) + Price Target (AB)
+    (20, 26): MA_HEAD,    # MAs: W20, W50, M20, M50, D200, D5 flag, MA Trend
+    (27, 27): DARK,       # Thesis/Notes
+    (28, 29): "283593",   # indigo: Analyst Consensus + Price Target
 }
 
 AL_CONFIG = [
@@ -98,7 +117,7 @@ def _write_header(ws, ctx):
     ws.freeze_panes = "A4"
     ws.sheet_view.zoomScale = 90
 
-    ws.merge_cells("A1:AB1")
+    ws.merge_cells(f"A1:{LAST_COL}1")
     ws["A1"] = (
         "SIPP / ISA Investment Dashboard — Fibonacci Retracement Alert Levels  |  v21"
     )
@@ -107,17 +126,24 @@ def _write_header(ws, ctx):
     ws["A1"].alignment = aln()
     ws.row_dimensions[1].height = 22
 
-    ws.merge_cells("A2:AB2")
+    ws.merge_cells(f"A2:{LAST_COL}2")
     ws["A2"] = (
-        f"v21 | {ctx.run_date} | {ctx.data_source} | "
-        "MACRO FIB: anchored to 2022 bear market low → cycle ATH  |  "
+        f"v21 | {ctx.run_date} | {ctx.data_source} | {ctx.d5_basis_text()} | "
+        "MACRO FIB: anchored to 2022 bear market low to cycle ATH  |  "
+        "Cycle ATH = max(stored ATH, highest close since the anchor low); "
+        "amber ATH cell = stored value superseded  |  "
+        "BELOW ANCHOR LOW = Fib structure broken  |  "
         "D200 SMA: simple 200-day MA; break below = regime change  |  "
+        "D5 EMA FLAG: 5-day EMA of completed daily closes; Close > D5 green, "
+        "Close < D5 red, bold = crossed since the previous session  |  "
+        "Italic Current = intraday price (session still open)  |  "
         "AL1=38.2%  AL2=50.0%  AL3=61.8%  |  "
         "FINANCIALS: TTM P/E | TTM EPS | Fwd P/E | Fwd EPS | D/E | Net Margin  "
         "EPS: $x.xx = Alpha Vantage independent verification  "
         "~$x.xx italic = yfinance or derived fallback  "
         "Red = rule broken (D/E>1.0 / margin<0 / TTM P/E>100 / Fwd P/E>80 / negative EPS)  "
-        "Amber = warning (D/E 0.75-1.0 / margin 0-5% / Fwd P/E 40-80)  Green = healthy  |  "
+        "Amber = warning (D/E 0.75-1.0 / margin 0-5% / Fwd P/E 40-80)  Green = healthy  "
+        "DATA CHECK = implausible value, verify before trusting  |  "
         "Teal cols = EMA/SMA: Green=above, Red=below  |  "
         "ANALYST: Consensus + mean price target from available live/fallback sources  "
         "Strong Buy=dark green  Buy=green  Hold=amber  Sell=red  |  "
@@ -153,35 +179,8 @@ def _row_background(row, sheet_row):
     return ALT if sheet_row % 2 == 0 else WHITE
 
 
-def financial_flags(row, macro_tickers):
-    """Red-flag rules. Macro gauges and pre-IPO placeholders are not assessed.
-
-    D/E>1.0 = HIGH LEVERAGE; margin<0 = LOSS-MAKING; 0-5% = THIN MARGIN;
-    TTM P/E>100 = ELEVATED; Fwd P/E>80 = STRETCHED.
-    """
-    if row.ticker in macro_tickers or row.rtype not in RowType.EQUITY_LIKE:
-        return []
-
-    flags = []
-    if row.de is not None:
-        if row.de > 2.0:
-            flags.append(f"EXTREME LEVERAGE D/E={row.de:.2f}")
-        elif row.de > 1.0:
-            flags.append(f"HIGH LEVERAGE D/E={row.de:.2f}")
-    if row.margin is not None:
-        if row.margin < 0:
-            flags.append("LOSS-MAKING")
-        elif row.margin < 0.05:
-            flags.append(f"THIN MARGIN {row.margin:.0%}")
-    if row.ttm_pe is not None and row.ttm_pe > 100:
-        flags.append(f"HIGH TTM P/E {row.ttm_pe:.0f}x")
-    if row.fwd_pe is not None and row.fwd_pe > 80:
-        flags.append(f"FWD P/E STRETCHED {row.fwd_pe:.0f}x")
-    return flags
-
-
 def _write_section_row(ws, row, asset):
-    ws.merge_cells(f"A{row}:AB{row}")
+    ws.merge_cells(f"A{row}:{LAST_COL}{row}")
     c = ws.cell(row=row, column=1, value=asset)
     c.font = fnt(bold=True, color="FFFFFF", size=8)
     c.fill = fill(SECT)
@@ -193,16 +192,18 @@ def _write_section_row(ws, row, asset):
 
 
 def _write_footer(ws, row, ctx):
-    ws.merge_cells(f"A{row}:AB{row}")
+    ws.merge_cells(f"A{row}:{LAST_COL}{row}")
     ws[f"A{row}"] = (
-        f"Sources: Yahoo Finance (yfinance) — prices + MAs auto-refreshed "
-        f"{ctx.run_date}  |  Analyst consensus: Alpha Vantage (manual refresh)  |  "
-        "MACRO FIB: 2022 bear market monthly Low → cycle ATH monthly High  |  "
+        f"Sources: Yahoo Finance (yfinance): prices, MAs, D5, fundamentals and "
+        f"analyst data refreshed {ctx.run_date}  |  Alpha Vantage: optional "
+        "independent EPS (AV_KEY)  |  "
+        "MACRO FIB: 2022 bear market low to cycle ATH  |  "
         "D200 SMA: simple 200-day rolling mean on daily close  |  "
+        "D5 EMA: 5-day EMA of completed daily closes  |  "
         "W20/W50 EMA: daily resampled to weekly (Fri), EWM  |  "
         "M20/M50 EMA: 10Y monthly close, EWM  |  "
         "Green=price above MA (bullish), Red=price below MA (bearish)  |  "
-        "GENIUS Act (Jul 2025): stablecoin yield prohibited — OCC rules Mar 2026  |  "
+        "GENIUS Act (Jul 2025): stablecoin yield prohibited; OCC rules Mar 2026  |  "
         "Not financial advice."
     )
     ws[f"A{row}"].font = fnt(italic=True, color="888888", size=7)
@@ -224,13 +225,20 @@ def _styled(ws, row, col, value, *, bg, color="000000", bold=False,
     return c
 
 
-def _write_identity(ws, row, record, bg, fin_flags):
+def _data_check_cell(ws, row, col):
+    """Write the DATA CHECK placeholder for a value that failed a plausibility rule."""
+    _styled(ws, row, col, "DATA CHECK", bg=CHECK_BG, color=CHECK_FC, bold=True,
+            size=7)
+
+
+def _write_identity(ws, row, record, bg, check, ctx):
     """A-D: asset, ticker, currency, current price.
 
-    A broken financial rule prefixes the asset with a bold red "! " so the row
-    is scannable without reading the Status column.
+    A broken financial rule or a pending data check prefixes the asset with a
+    bold red "! " so the row is scannable without reading the Status column.
+    The Current price is italic when it was taken during an open session.
     """
-    if fin_flags:
+    if check.is_red or check.needs_data_check:
         label, color, bold = f"! {record.asset}", RED_C, True
     elif record.rtype == RowType.ISA:
         label, color, bold = record.asset, BLUE, True
@@ -243,24 +251,30 @@ def _write_identity(ws, row, record, bg, fin_flags):
     _styled(ws, row, 2, record.ticker, bg=bg, bold=True)
     _styled(ws, row, 3, record.ccy, bg=bg)
     _styled(ws, row, 4, record.current, bg=bg, bold=True, color="0000FF",
+            italic=ctx.is_intraday(record),
             num_fmt='#,##0.00' if record.current else None)
 
 
-def _write_fib_columns(ws, row, record):
+def _write_fib_columns(ws, row, record, ctx):
     """E-K: historical anchors, the range, and the four alert levels.
 
-    Anchors are never touched by the live overlay. Manual rows carry explicit
-    levels; everything else derives them from the anchors.
+    Cycle ATH is the effective ATH. When it superseded the stored value the
+    cell is amber so the JSON can be updated. Manual rows carry explicit levels;
+    everything else derives them from the anchors.
     """
-    for col, anchor in ((5, record.macro_lo), (6, record.macro_hi)):
-        _styled(ws, row, col, anchor, bg=FIB_BG, color="0000FF",
-                num_fmt='#,##0.00' if anchor else None)
+    _styled(ws, row, 5, record.macro_lo, bg=FIB_BG, color="0000FF",
+            num_fmt='#,##0.00' if record.macro_lo else None)
+    superseded = record.ticker in ctx.ath_updates and not record.is_manual
+    _styled(ws, row, 6, record.macro_hi,
+            bg=CHECK_BG if superseded else FIB_BG,
+            color=CHECK_FC if superseded else "0000FF", bold=superseded,
+            num_fmt='#,##0.00' if record.macro_hi else None)
 
     if record.has_fib_anchors:
         _styled(ws, row, 7, round(record.macro_hi - record.macro_lo, 2),
                 bg=FIB_BG, num_fmt='#,##0.00')
     else:
-        _styled(ws, row, 7, "—", bg=FIB_BG)
+        _styled(ws, row, 7, "-", bg=FIB_BG)
 
     for col, pct, al_bg, al_color in AL_CONFIG:
         if record.is_manual and record.manual:
@@ -273,35 +287,41 @@ def _write_fib_columns(ws, row, record):
             _styled(ws, row, col, fib(record.macro_hi, record.macro_lo, pct),
                     bg=al_bg, color=al_color, num_fmt='#,##0.00')
         else:
-            _styled(ws, row, col, "—", bg=al_bg)
+            _styled(ws, row, col, "-", bg=al_bg)
 
 
 def _write_upside(ws, row, record):
-    """L: gain required to reach the cycle ATH."""
+    """L: gain required to reach the effective cycle ATH."""
     if record.current and record.macro_hi:
         _styled(ws, row, 12, upside_to_ath(record.current, record.macro_hi),
                 bg="E8F5E9", bold=True, num_fmt='0.0%')
     else:
-        _styled(ws, row, 12, "—", bg="E8F5E9")
+        _styled(ws, row, 12, "-", bg="E8F5E9")
 
 
-def _write_status(ws, row, record, bg, fin_flags):
-    """M: zone status, with any financial red flags appended."""
-    if record.is_manual:
-        status, color = "Manual levels\n(no macro Fib)", AMB
-    elif record.current and record.has_fib_anchors:
-        zone = classify_zone(record.current, record.macro_lo, record.macro_hi)
-        status, color = zone.status, zone.color
-    else:
-        status, color = "—", "555555"
+def _write_status(ws, row, record, bg, check, ctx):
+    """M: computed zone status, then red flags, warnings and data checks.
 
-    if fin_flags:
-        status = status + "\n" + " | ".join(fin_flags)
-        if color == "555555":    # was "No action yet" — upgrade to amber
+    Sentiment gauges show the zone without an action verb because they cannot
+    be bought. Manual rows say which way their levels trigger.
+    """
+    zone = classify_row(record)
+    _bg, _fc, _short, plain = ZONE_STYLES[zone.rank]
+    status = plain if record.ticker in ctx.sentiment_tickers else zone.status
+    color = zone.color
+    if record.is_manual and zone.al1 is not None:
+        rising = record.direction == Direction.UP
+        status += "\nMANUAL LEVELS (" + ("rising" if rising else "falling") + ")"
+
+    extras = list(check.red) + list(check.amber)
+    extras += [f"DATA CHECK: {reason}" for reason in check.data_check]
+    if extras:
+        status = status + "\n" + " | ".join(extras)
+        if color == "555555":    # was "No action yet"; upgrade to amber
             color = AMB
 
     _styled(ws, row, 13, status, bg=bg, color=color, size=7.5,
-            bold=("HIT" in status or "BELOW" in status or bool(fin_flags)))
+            bold=("HIT" in status or "BELOW" in status or bool(extras)))
 
 
 def _ratio_style(value, high, mid, low):
@@ -316,12 +336,16 @@ def _ratio_style(value, high, mid, low):
     return FUND_BG, "000000"
 
 
-def _write_valuation(ws, row, record, ctx):
-    """N-S: TTM P/E, TTM EPS, Fwd P/E, Fwd EPS, D/E, net margin."""
+def _write_valuation(ws, row, record, ctx, check):
+    """N-S: TTM P/E, TTM EPS, Fwd P/E, Fwd EPS, D/E, net margin.
+
+    A field flagged by a DATA CHECK rule is shown as DATA CHECK instead of a
+    number, so an implausible value is never read as fact.
+    """
     na = record.na_label
     current, ttm_pe, fwd_pe = record.current, record.ttm_pe, record.fwd_pe
 
-    # N — TTM P/E
+    # N: TTM P/E
     if ttm_pe is not None:
         pe_bg, pe_fc = _ratio_style(ttm_pe, 100, 50, 15)
         _styled(ws, row, 14, f"{ttm_pe:.0f}x", bg=pe_bg, color=pe_fc,
@@ -329,21 +353,16 @@ def _write_valuation(ws, row, record, ctx):
     else:
         _styled(ws, row, 14, na, bg=FUND_BG, color="888888")
 
-    # O — TTM EPS. Source priority:
-    #   1. Alpha Vantage OVERVIEW (DilutedEPSTTM) — independent verification
-    #   2. yfinance trailingEps — live fallback, not independent verification
-    #   3. Derived Price ÷ TTM P/E — "~" prefix, cannot verify the P/E
-    eps_view = ctx.eps_for(record.ticker)
-    ttm_eps = eps_view.trailing_eps if eps_view else None
-    verified = bool(eps_view and eps_view.is_verified)
-    if ttm_eps is None and ttm_pe and current:
-        ttm_eps, verified = round(current / ttm_pe, 2), False
-
+    # O: TTM EPS. Source priority (calculations.resolve_eps):
+    #   1. Alpha Vantage OVERVIEW (DilutedEPSTTM): independent verification
+    #   2. yfinance trailingEps: live fallback, not independent verification
+    #   3. Derived price / TTM P/E: "~" prefix, cannot verify the P/E
+    # Shown in the EPS's own unit; an unknown unit shows the bare number.
+    ttm_eps, verified = ctx.resolved_eps(record)
     if ttm_eps is not None:
-        prefix = "$" if verified else "~$"
         _styled(
             ws, row, 15,
-            f"{'-' if ttm_eps < 0 else ''}{prefix}{abs(ttm_eps):.2f}",
+            eps_text(ttm_eps, ctx.eps_unit_for(record), verified),
             bg="FFCDD2" if ttm_eps < 0 else FUND_BG,
             color=RED_C if ttm_eps < 0 else ("000000" if verified else "555555"),
             italic=not verified,
@@ -351,24 +370,28 @@ def _write_valuation(ws, row, record, ctx):
     else:
         _styled(ws, row, 15, na, bg=FUND_BG, color="888888")
 
-    # P — Fwd P/E
-    if fwd_pe is not None:
+    # P: Fwd P/E
+    if "fwd_pe" in check.suspect:
+        _data_check_cell(ws, row, 16)
+    elif fwd_pe is not None:
         fpe_bg, fpe_fc = _ratio_style(fwd_pe, 80, 40, 20)
         _styled(ws, row, 16, f"{fwd_pe:.0f}x", bg=fpe_bg, color=fpe_fc,
                 bold=fwd_pe > 80)
     else:
         _styled(ws, row, 16, na, bg=FUND_BG, color="888888")
 
-    # Q — Fwd EPS is always derived; there is no independent forward source.
+    # Q: Fwd EPS is always derived; there is no independent forward source.
     fwd_eps = round(current / fwd_pe, 2) if (fwd_pe and current) else None
-    if fwd_eps is not None:
+    if "fwd_pe" in check.suspect:
+        _data_check_cell(ws, row, 17)
+    elif fwd_eps is not None:
         _styled(ws, row, 17, f"{'-' if fwd_eps < 0 else ''}~${abs(fwd_eps):.2f}",
                 bg="FFCDD2" if fwd_eps < 0 else FUND_BG,
                 color=RED_C if fwd_eps < 0 else "555555", italic=True)
     else:
         _styled(ws, row, 17, na, bg=FUND_BG, color="888888")
 
-    # R — D/E (red >1.0, amber 0.75-1.0, green <0.50)
+    # R: D/E (red >1.0, amber 0.75-1.0, green <0.50)
     de = record.de
     if de is not None:
         if de > 1.0:
@@ -383,9 +406,11 @@ def _write_valuation(ws, row, record, ctx):
     else:
         _styled(ws, row, 18, na, bg=FUND_BG, color="888888")
 
-    # S — Net Margin (red <0, amber 0-5%, green >20%)
+    # S: Net Margin (red <0, amber 0-5%, green >20%)
     margin = record.margin
-    if margin is not None:
+    if "margin" in check.suspect:
+        _data_check_cell(ws, row, 19)
+    elif margin is not None:
         if margin < 0:
             m_bg, m_fc, m_bold = "FFCDD2", RED_C, True
         elif margin < 0.05:
@@ -403,8 +428,8 @@ def _write_valuation(ws, row, record, ctx):
 
 
 def _write_moving_averages(ws, row, record, ctx):
-    """T-Y: the four EMAs, the D200 SMA, and a compact trend summary."""
-    mas = ctx.moving_averages_for(record.ticker)
+    """T-Z: the four EMAs, the D200 SMA, the D5 flag, and a trend summary."""
+    mas = ctx.moving_averages_for(record)
     for col, ema in ((20, mas.w20), (21, mas.w50), (22, mas.m20),
                      (23, mas.m50), (24, mas.d200)):
         if ema is not None:
@@ -414,22 +439,24 @@ def _write_moving_averages(ws, row, record, ctx):
         else:
             _styled(ws, row, col, "N/A", bg=MA_BG, color="888888")
 
+    write_d5_cell(ws, row, COL_D5, ctx.d5_for(record))
+
     _styled(
-        ws, row, 25,
+        ws, row, COL_TREND,
         ma_trend_text(record.current, mas.w20, mas.w50, mas.m20, mas.m50, mas.d200),
         bg=MA_BG, size=7.5,
     )
 
 
 def _write_thesis_and_analyst(ws, row, record, ctx, bg):
-    """Z-AB: thesis note, analyst consensus, and analyst price target."""
-    _styled(ws, row, 26, record.notes, bg=bg, size=7.5,
+    """AA-AC: thesis note, analyst consensus, and analyst price target."""
+    _styled(ws, row, COL_NOTES, record.notes, bg=bg, size=7.5,
             italic=(record.rtype == RowType.ISA), align="left")
 
-    analyst = ctx.analyst_for(record.ticker)
+    analyst = ctx.analyst_for(record)
     if not (analyst and not record.is_etf):
         # ETF, crypto without analyst data, UK stocks, pre-IPO
-        for col in (27, 28):
+        for col in (COL_CONSENSUS, COL_TARGET):
             _styled(ws, row, col, record.na_label, bg="F5F5F5", color="888888")
         return
 
@@ -442,13 +469,13 @@ def _write_thesis_and_analyst(ws, row, record, ctx, bg):
         cons_bg, cons_fc = AL2_BG, AMB
     else:
         cons_bg, cons_fc = "FFCDD2", RED_C
-    _styled(ws, row, 27, f"{consensus} ({analyst.n_analysts})",
+    _styled(ws, row, COL_CONSENSUS, f"{consensus} ({analyst.n_analysts})",
             bg=cons_bg, color=cons_fc,
             bold=(consensus in ("Strong Buy", "Buy")))
 
     upside = analyst.upside_from(record.current)
     if upside is None:
-        _styled(ws, row, 28, "N/A", bg="F5F5F5", color="888888")
+        _styled(ws, row, COL_TARGET, "N/A", bg="F5F5F5", color="888888")
         return
 
     if upside > 0.30:
@@ -459,7 +486,8 @@ def _write_thesis_and_analyst(ws, row, record, ctx, bg):
         pt_bg, pt_fc, pt_bold = AL2_BG, AMB, False
     else:
         pt_bg, pt_fc, pt_bold = "FFCDD2", RED_C, False
-    _styled(ws, row, 28, f"${analyst.target:,.0f} ({upside:+.0%})",
+    _styled(ws, row, COL_TARGET,
+            f"{money(analyst.target, record.ccy)} ({upside:+.0%})",
             bg=pt_bg, color=pt_fc, bold=pt_bold)
 
 
@@ -478,13 +506,13 @@ def render(ws, rows, ctx):
             continue
 
         bg = _row_background(record, row)
-        fin_flags = financial_flags(record, ctx.macro_tickers)
+        check = ctx.fundamentals_for(record)
 
-        _write_identity(ws, row, record, bg, fin_flags)
-        _write_fib_columns(ws, row, record)
+        _write_identity(ws, row, record, bg, check, ctx)
+        _write_fib_columns(ws, row, record, ctx)
         _write_upside(ws, row, record)
-        _write_status(ws, row, record, bg, fin_flags)
-        _write_valuation(ws, row, record, ctx)
+        _write_status(ws, row, record, bg, check, ctx)
+        _write_valuation(ws, row, record, ctx, check)
         _write_moving_averages(ws, row, record, ctx)
         _write_thesis_and_analyst(ws, row, record, ctx, bg)
 

@@ -4,47 +4,143 @@ This module owns every call to yfinance and Alpha Vantage. Callers receive
 normalized values and never see provider payload shapes.
 
 Both the batch refresh and the ``--add`` refresh use the same download windows
-and the same moving-average computation, so a ticker cannot end up with
-different W20/W50/M20/M50/D200 values depending on which path fetched it.
+and the same per-series computation (``series_metrics``), so a ticker cannot end
+up with different moving averages, D5 values or highest close depending on
+which path fetched it.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
+
+from modules.calculations import (
+    ANCHOR_START,
+    bar_is_complete,
+    established_eps_unit,
+    exchange_for,
+    unit_factor,
+)
+from modules.models import D5View
 
 
-# ── Download windows shared by every fetch path ──────────────────────────────
-# Daily 2Y    -> D200 SMA and weekly EMAs (resampled to Friday close)
-# Hourly 5D   -> current price (avoids stale daily-close and .info caching)
-# Monthly 10Y -> monthly EMAs
-DAILY_WINDOW = {"period": "2y", "interval": "1d"}
+# -- Download windows shared by every fetch path ------------------------------
+# Daily from the anchor-low window -> highest close since the anchor low, the
+#                                     D5 EMA, and (on the last 2 years only)
+#                                     D200 SMA and weekly EMAs
+# Hourly 5D                        -> current price (avoids stale daily close)
+# Monthly 10Y                      -> monthly EMAs
+DAILY_WINDOW = {"start": ANCHOR_START, "interval": "1d"}
 HOURLY_WINDOW = {"period": "5d", "interval": "60m"}
 MONTHLY_WINDOW = {"period": "10y", "interval": "1mo"}
 
+#: D200 and the weekly EMAs are computed on this trailing window, matching the
+#: 2-year daily download they were originally defined on.
+MA_DAILY_YEARS = 2
+
+#: The D5 EMA span, in completed daily sessions.
+D5_SPAN = 5
+
 # Anchor derivation for --add needs a longer daily history than the MA windows.
 ANCHOR_WINDOW = {"period": "5y", "interval": "1d"}
-BEAR_WINDOW_START = "2022-09-01"
+BEAR_WINDOW_START = ANCHOR_START
 BEAR_WINDOW_END = "2022-12-31"
+
+
+def _scale(value, factor):
+    """Multiply a price-like value by a unit factor, keeping None as None."""
+    if value is None or factor == 1:
+        return value
+    return round(value * factor, 4)
 
 
 @dataclass
 class LiveMarketData:
-    """Opportunistically populated live values. Empty means use JSON fallback."""
+    """Opportunistically populated live values. Empty means use JSON fallback.
+
+    All dicts are keyed by the script ticker, not the provider symbol, and hold
+    raw provider values in the provider's quote currency (``currency``). They
+    are never rewritten into a row's unit, because rows sharing a ticker may
+    store different units (the same London line in pounds and in pence).
+
+    Readers use the ``*_for(row)`` methods, which convert each value into that
+    row's stored unit (``row.ccy``). When the provider currency cannot be
+    converted to the row's (CAD quote, USD row) they return None, so the row
+    falls back to its stored values instead of mixing currencies.
+
+    ``eps_currency`` is the reporting unit of ``eps``, recorded only where it is
+    established; a missing entry means the unit is unknown.
+    """
 
     prices: dict = field(default_factory=dict)
     moving_averages: dict = field(default_factory=dict)
     fundamentals: dict = field(default_factory=dict)
     eps: dict = field(default_factory=dict)
+    eps_currency: dict = field(default_factory=dict)
     analyst: dict = field(default_factory=dict)
+    currency: dict = field(default_factory=dict)
+    d5: dict = field(default_factory=dict)
+    max_close: dict = field(default_factory=dict)
 
     def has_row_overlay(self):
         """True when there is anything worth overlaying onto portfolio rows."""
-        return bool(self.prices or self.fundamentals)
+        return bool(self.prices or self.fundamentals or self.eps)
+
+    def unit_factor_for(self, row):
+        """Multiplier from provider unit to ``row.ccy``; None if unconvertible."""
+        return unit_factor(self.currency.get(row.ticker), row.ccy)
+
+    def is_withheld(self, row):
+        """True when live amounts exist for the row but cannot be converted."""
+        return row.ticker in self.currency and self.unit_factor_for(row) is None
+
+    def price_for(self, row):
+        """Live price in the row's unit, or None (absent or withheld)."""
+        factor = self.unit_factor_for(row)
+        if factor is None or row.ticker not in self.prices:
+            return None
+        return _scale(self.prices[row.ticker], factor)
+
+    def moving_averages_for(self, row):
+        """Live MA tuple in the row's unit, or None (absent or withheld)."""
+        factor = self.unit_factor_for(row)
+        if factor is None or row.ticker not in self.moving_averages:
+            return None
+        return tuple(_scale(v, factor) for v in self.moving_averages[row.ticker])
+
+    def d5_for(self, row):
+        """D5View in the row's unit, or None (absent or withheld)."""
+        factor = self.unit_factor_for(row)
+        view = self.d5.get(row.ticker)
+        if factor is None or view is None:
+            return None
+        return view if factor == 1 else view.scaled(factor)
+
+    def max_close_for(self, row):
+        """Highest close since the anchor low in the row's unit, or None."""
+        factor = self.unit_factor_for(row)
+        if factor is None:
+            return None
+        return _scale(self.max_close.get(row.ticker), factor)
+
+    def analyst_for(self, row):
+        """(consensus, count, target) with the target in the row's unit.
+
+        Consensus and count are dimensionless and always kept; the target is
+        None when the currency cannot be converted. Returns None when absent.
+        """
+        analyst = self.analyst.get(row.ticker)
+        if analyst is None:
+            return None
+        consensus, n_analysts, target = analyst
+        factor = self.unit_factor_for(row)
+        return (consensus, n_analysts,
+                None if factor is None else _scale(target, factor))
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # Value normalization
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 def to_float(value):
     try:
         return None if value is None else float(value)
@@ -53,7 +149,7 @@ def to_float(value):
 
 
 def rounded(value):
-    """Round to 4dp for sub-$1 assets, 2dp otherwise. None on NaN or failure."""
+    """Round to 4dp for sub-1 assets, 2dp otherwise. None on NaN or failure."""
     if value is None:
         return None
     try:
@@ -132,15 +228,23 @@ def realtime_price(info):
     )
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Moving averages — the single implementation used by every fetch path
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
+# Series computation: the single implementation used by every fetch path
+# -----------------------------------------------------------------------------
 def moving_averages(daily_close, monthly_close):
     """Return (w20, w50, m20, m50, d200) from daily and monthly close series.
 
-    Guard thresholds mirror the batch refresh: a value is only produced once the
+    The daily series may reach back to the anchor low. D200 and the weekly EMAs
+    use only the trailing MA_DAILY_YEARS so their values match the original
+    2-year definition. Guard thresholds mean a value is only produced once the
     series is long enough for the average to mean anything.
     """
+    if len(daily_close):
+        import pandas as pd
+
+        start = daily_close.index[-1] - pd.DateOffset(years=MA_DAILY_YEARS)
+        daily_close = daily_close[daily_close.index >= start]
+
     d200 = (
         rounded(daily_close.rolling(200).mean().iloc[-1])
         if len(daily_close) >= 50 else None
@@ -168,6 +272,59 @@ def moving_averages(daily_close, monthly_close):
     return (w20, w50, m20, m50, d200)
 
 
+def completed_closes(daily_close, symbol, now_utc):
+    """Return (closes, intraday) with any unfinished session bar removed.
+
+    When the run happens while the symbol's exchange is still trading, the last
+    daily bar is today's partial session. It is dropped so every close-based
+    signal uses completed sessions only, and ``intraday`` is True so the row can
+    be marked as carrying an intraday Current price.
+    """
+    if not len(daily_close):
+        return daily_close, False
+    last_date = daily_close.index[-1].date()
+    if bar_is_complete(last_date, exchange_for(symbol), now_utc):
+        return daily_close, False
+    return daily_close.iloc[:-1], True
+
+
+def d5_view(closes, symbol, intraday):
+    """Build a D5View from completed daily closes, or None if too short.
+
+    D5 is an EMA with span D5_SPAN over completed daily closes (adjust=False,
+    the same convention as the weekly and monthly EMAs). Two points of the EMA
+    are kept so the flag can detect a cross since the previous session.
+    """
+    if len(closes) < D5_SPAN + 1:
+        return None
+    ema = closes.ewm(span=D5_SPAN, adjust=False).mean()
+    return D5View(
+        close=rounded(closes.iloc[-1]),
+        d5=rounded(ema.iloc[-1]),
+        prev_close=rounded(closes.iloc[-2]),
+        prev_d5=rounded(ema.iloc[-2]),
+        session_date=closes.index[-1].date().isoformat(),
+        exchange=exchange_for(symbol),
+        intraday=intraday,
+    )
+
+
+def series_metrics(daily, monthly, symbol, now_utc):
+    """Return (moving_averages, d5_view, max_close) for one symbol.
+
+    ``max_close`` is the highest completed close since ANCHOR_START, used to
+    supersede a stale stored cycle ATH.
+    """
+    closes, intraday = completed_closes(daily, symbol, now_utc)
+    anchored = closes[closes.index >= ANCHOR_START]
+    max_close = rounded(anchored.max()) if len(anchored) else None
+    return (
+        moving_averages(daily, monthly),
+        d5_view(closes, symbol, intraday),
+        max_close,
+    )
+
+
 def fib_anchors(history):
     """Derive (bear_low, cycle_high) from a long daily OHLC history.
 
@@ -185,18 +342,54 @@ def fib_anchors(history):
     return bear_low, cycle_high
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # yfinance fetch paths
-# ─────────────────────────────────────────────────────────────────────────────
-def _close_series(raw, symbol, multi):
-    return (raw[symbol]["Close"] if multi else raw["Close"]).dropna()
+# -----------------------------------------------------------------------------
+def _close_series(raw, symbol):
+    """Return the Close column for one symbol as a Series, whatever the layout.
+
+    yfinance returns three column layouts depending on the call:
+
+    - ticker-first (Ticker, Price) MultiIndex, from ``group_by="ticker"``,
+      including a batch of only one symbol;
+    - price-first (Price, Ticker) MultiIndex, from a single-symbol download
+      without ``group_by``;
+    - flat columns, from older releases.
+
+    The layout is detected from the columns actually returned: the MultiIndex
+    level holding ``symbol`` is selected away, leaving price fields. A
+    one-column DataFrame is then reduced to a Series, because under pandas 3 a
+    later ``float()`` on a frame raises and was swallowed into None.
+    """
+    columns = raw.columns
+    if columns.nlevels > 1:
+        for level in range(columns.nlevels):
+            if symbol in columns.get_level_values(level):
+                raw = raw.xs(symbol, axis=1, level=level)
+                break
+        else:
+            # The symbol is in no level: it has no history in this download.
+            # Falling through to raw["Close"] would return another
+            # instrument's closes, so report it as empty instead.
+            import pandas as pd
+            return pd.Series(dtype=float)
+    close = raw["Close"]
+    if hasattr(close, "columns"):
+        close = close.iloc[:, 0]
+    return close.dropna()
 
 
-def fetch_batch(tickers, aliases, rec_map, warn=print, client=None):
-    """Refresh prices, MAs, fundamentals, EPS, and analyst data for many tickers.
+def _utc_now(now):
+    return now or datetime.now(timezone.utc)
+
+
+def fetch_batch(tickers, aliases, rec_map, warn=print, client=None, now=None):
+    """Refresh prices, MAs, D5, fundamentals, EPS, and analyst data for many tickers.
 
     ``client`` defaults to the real ``yfinance`` module. Passing a stub exposing
     ``download`` and ``Ticker`` lets the orchestration be tested without network.
+    ``now`` (timezone-aware) decides which daily bars are completed sessions; it
+    defaults to the current time.
     """
     live = LiveMarketData()
     if not tickers:
@@ -205,6 +398,7 @@ def fetch_batch(tickers, aliases, rec_map, warn=print, client=None):
     import contextlib
     import io
 
+    now = _utc_now(now)
     yf = client
     if yf is None:
         try:
@@ -232,21 +426,25 @@ def fetch_batch(tickers, aliases, rec_map, warn=print, client=None):
         raw_daily = download("daily data", DAILY_WINDOW)
         raw_hourly = download("hourly prices", HOURLY_WINDOW)
         raw_monthly = download("monthly data", MONTHLY_WINDOW)
-        multi = len(symbols) > 1
 
         for ticker in tickers:
             symbol = symbol_for(ticker)
             try:
-                daily = _close_series(raw_daily, symbol, multi)
-                hourly = _close_series(raw_hourly, symbol, multi)
-                monthly = _close_series(raw_monthly, symbol, multi)
+                daily = _close_series(raw_daily, symbol)
+                hourly = _close_series(raw_hourly, symbol)
+                monthly = _close_series(raw_monthly, symbol)
                 if daily.empty:
                     warn(f"  [skip] {ticker}: no daily data returned")
                     continue
 
                 price_source = hourly if not hourly.empty else daily
                 live.prices[ticker] = rounded(price_source.iloc[-1])
-                live.moving_averages[ticker] = moving_averages(daily, monthly)
+                mas, d5, max_close = series_metrics(daily, monthly, symbol, now)
+                live.moving_averages[ticker] = mas
+                if d5 is not None:
+                    live.d5[ticker] = d5
+                if max_close is not None:
+                    live.max_close[ticker] = max_close
             except Exception as ex:
                 warn(f"  [warn] {ticker}: {ex}")
 
@@ -258,12 +456,20 @@ def fetch_batch(tickers, aliases, rec_map, warn=print, client=None):
             try:
                 info = yf.Ticker(symbol_for(ticker)).info
                 live.fundamentals[ticker] = fundamentals_from_info(info)
+                if info.get("currency"):
+                    live.currency[ticker] = info["currency"]
 
                 # yfinance trailingEps is useful but is not Alpha Vantage
                 # independent verification, so provenance is recorded as False.
+                # Its unit is recorded only where established (see
+                # calculations.established_eps_unit).
                 ttm_eps = to_float(info.get("trailingEps"))
                 if ttm_eps is not None:
                     live.eps[ticker] = (round(ttm_eps, 2), False)
+                    unit = established_eps_unit(info.get("currency"),
+                                                info.get("financialCurrency"))
+                    if unit:
+                        live.eps_currency[ticker] = unit
 
                 price = realtime_price(info)
                 if price is not None:
@@ -276,13 +482,14 @@ def fetch_batch(tickers, aliases, rec_map, warn=print, client=None):
                 warn(f"  [warn] {ticker} fundamentals: {ex}")
 
         warn(
-            f"[Live Refresh] Done — {len(live.prices)} prices | "
+            f"[Live Refresh] Done: {len(live.prices)} prices | "
             f"{len(live.moving_averages)} MA sets | "
+            f"{len(live.d5)} D5 sets | "
             f"{len(live.fundamentals)} fundamentals | "
             f"{len(live.analyst)} analyst sets."
         )
     except Exception as ex:
-        warn(f"[Live Refresh] Failed ({ex}) — falling back to static JSON values.")
+        warn(f"[Live Refresh] Failed ({ex}); falling back to static JSON values.")
 
     return live
 
@@ -300,20 +507,30 @@ class TickerSnapshot:
     moving_averages: tuple
     fundamentals: tuple
     analyst: tuple
+    d5: D5View | None = None
+    max_close: float | None = None
 
 
-def fetch_ticker(ticker, rec_map, warn=print, client=None):
-    """Fetch one ticker for ``--add``, reusing the shared MA computation.
+def fetch_ticker(ticker, rec_map, warn=print, client=None, now=None, symbol=None):
+    """Fetch one ticker for ``--add``, reusing the shared series computation.
 
-    Price and moving averages come from the same windows the batch refresh uses.
-    Only Fib anchor derivation is specific to ``--add``, because portfolio rows carry
-    curated historical anchors instead of deriving them.
+    Price, moving averages, D5 and highest close come from the same windows and
+    the same ``series_metrics`` the batch refresh uses. Only Fib anchor
+    derivation is specific to ``--add``, because portfolio rows carry curated
+    historical anchors instead of deriving them.
+
+    ``ticker`` is the portfolio key and is what the snapshot carries.
+    ``symbol`` is the provider symbol from ``yahoo_aliases`` (for example
+    ``BTC-USD`` for ``BTC``) and defaults to ``ticker``, so ``--add`` queries
+    the same instrument as the batch refresh.
 
     ``client`` defaults to the real ``yfinance`` module; pass a stub to test.
     """
     import contextlib
     import io
 
+    symbol = symbol or ticker
+    now = _utc_now(now)
     yf = client
     if yf is None:
         try:
@@ -323,20 +540,20 @@ def fetch_ticker(ticker, rec_map, warn=print, client=None):
             return None
 
     try:
-        handle = yf.Ticker(ticker)
+        handle = yf.Ticker(symbol)
         info = handle.info
 
         with contextlib.redirect_stdout(io.StringIO()):
-            raw_daily = yf.download(ticker, auto_adjust=True, progress=False, **DAILY_WINDOW)
-            raw_hourly = yf.download(ticker, auto_adjust=True, progress=False, **HOURLY_WINDOW)
-            raw_monthly = yf.download(ticker, auto_adjust=True, progress=False, **MONTHLY_WINDOW)
+            raw_daily = yf.download(symbol, auto_adjust=True, progress=False, **DAILY_WINDOW)
+            raw_hourly = yf.download(symbol, auto_adjust=True, progress=False, **HOURLY_WINDOW)
+            raw_monthly = yf.download(symbol, auto_adjust=True, progress=False, **MONTHLY_WINDOW)
             anchor_history = handle.history(**ANCHOR_WINDOW)
 
-        daily = _close_series(raw_daily, ticker, multi=False)
-        hourly = _close_series(raw_hourly, ticker, multi=False)
-        monthly = _close_series(raw_monthly, ticker, multi=False)
+        daily = _close_series(raw_daily, symbol)
+        hourly = _close_series(raw_hourly, symbol)
+        monthly = _close_series(raw_monthly, symbol)
         if daily.empty or anchor_history.empty:
-            warn(f"[--add {ticker}] No price history — skipping.")
+            warn(f"[--add {ticker}] No price history; skipping.")
             return None
 
         price = realtime_price(info)
@@ -346,9 +563,10 @@ def fetch_ticker(ticker, rec_map, warn=print, client=None):
 
         bear_low, cycle_high = fib_anchors(anchor_history)
         if bear_low is None or cycle_high is None:
-            warn(f"[--add {ticker}] Could not derive Fib anchors — skipping.")
+            warn(f"[--add {ticker}] Could not derive Fib anchors; skipping.")
             return None
 
+        mas, d5, max_close = series_metrics(daily, monthly, symbol, now)
         return TickerSnapshot(
             ticker=ticker,
             name=info.get("longName") or info.get("shortName") or ticker,
@@ -356,18 +574,20 @@ def fetch_ticker(ticker, rec_map, warn=print, client=None):
             price=price,
             bear_low=bear_low,
             cycle_high=cycle_high,
-            moving_averages=moving_averages(daily, monthly),
+            moving_averages=mas,
             fundamentals=fundamentals_from_info(info),
             analyst=analyst_from_info(info, rec_map, default_consensus="Hold"),
+            d5=d5,
+            max_close=max_close,
         )
     except Exception as ex:
         warn(f"[--add {ticker}] Failed: {ex}")
         return None
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Alpha Vantage — independent TTM EPS used to verify yfinance P/E ratios
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
+# Alpha Vantage: independent TTM EPS used to verify yfinance P/E ratios
+# -----------------------------------------------------------------------------
 def alpha_vantage_targets(us_list, uk_map, daily_call_budget=25):
     """Return (targets, dropped_count) within the daily free-tier call budget.
 
@@ -382,8 +602,14 @@ def alpha_vantage_targets(us_list, uk_map, daily_call_budget=25):
 
 
 def fetch_alpha_vantage_eps(targets, uk_map, api_key, sleep_seconds, warn=print,
-                            http=None, sleeper=None):
+                            http=None, sleeper=None, units=None):
     """Return {ticker: (ttm_eps, True)} for tickers Alpha Vantage can verify.
+
+    When ``units`` (a dict) is given, it receives ticker -> EPS unit for every
+    EPS returned: the OVERVIEW ``Currency`` where its meaning for
+    ``DilutedEPSTTM`` is established, otherwise None. It is established only
+    for US targets whose ``Currency`` is USD; ``.LON`` targets have no known
+    quote currency here, so their unit is None (unknown).
 
     ``http`` defaults to ``requests`` and ``sleeper`` to ``time.sleep``; both are
     injectable so rate-limit and payload handling can be tested without network
@@ -411,7 +637,7 @@ def fetch_alpha_vantage_eps(targets, uk_map, api_key, sleep_seconds, warn=print,
     )
     try:
         for idx, ticker in enumerate(targets):
-            symbol = uk_map.get(ticker, ticker)   # remap .L → .LON for UK stocks
+            symbol = uk_map.get(ticker, ticker)   # remap .L to .LON for UK stocks
             try:
                 response = http.get(
                     "https://www.alphavantage.co/query",
@@ -428,14 +654,18 @@ def fetch_alpha_vantage_eps(targets, uk_map, api_key, sleep_seconds, warn=print,
                     eps = to_float(payload.get("DilutedEPSTTM") or payload.get("EPS"))
                     if eps is not None:
                         results[ticker] = (round(eps, 2), True)
-                        warn(f"  [AV] {ticker}: TTM EPS=${round(eps, 2)}")
+                        if units is not None:
+                            quote = None if ticker in uk_map else "USD"
+                            units[ticker] = established_eps_unit(
+                                quote, payload.get("Currency"))
+                        warn(f"  [AV] {ticker}: TTM EPS={round(eps, 2)}")
             except Exception as ex:
                 warn(f"  [AV warn] {ticker}: {ex}")
 
             if idx < len(targets) - 1:
                 sleeper(sleep_seconds)
 
-        warn(f"[Alpha Vantage EPS] Done — {len(results)} EPS values fetched.")
+        warn(f"[Alpha Vantage EPS] Done: {len(results)} EPS values fetched.")
     except Exception as ex:
         warn(f"[Alpha Vantage EPS] Failed ({ex})")
 
