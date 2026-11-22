@@ -19,6 +19,7 @@ from modules.calculations import (
     bar_is_complete,
     established_eps_unit,
     exchange_for,
+    scale_amount,
     unit_factor,
 )
 from modules.models import D5View
@@ -45,13 +46,6 @@ D5_SPAN = 5
 ANCHOR_WINDOW = {"period": "5y", "interval": "1d"}
 BEAR_WINDOW_START = ANCHOR_START
 BEAR_WINDOW_END = "2022-12-31"
-
-
-def _scale(value, factor):
-    """Multiply a price-like value by a unit factor, keeping None as None."""
-    if value is None or factor == 1:
-        return value
-    return round(value * factor, 4)
 
 
 @dataclass
@@ -99,14 +93,14 @@ class LiveMarketData:
         factor = self.unit_factor_for(row)
         if factor is None or row.ticker not in self.prices:
             return None
-        return _scale(self.prices[row.ticker], factor)
+        return scale_amount(self.prices[row.ticker], factor)
 
     def moving_averages_for(self, row):
         """Live MA tuple in the row's unit, or None (absent or withheld)."""
         factor = self.unit_factor_for(row)
         if factor is None or row.ticker not in self.moving_averages:
             return None
-        return tuple(_scale(v, factor) for v in self.moving_averages[row.ticker])
+        return tuple(scale_amount(v, factor) for v in self.moving_averages[row.ticker])
 
     def d5_for(self, row):
         """D5View in the row's unit, or None (absent or withheld)."""
@@ -121,7 +115,7 @@ class LiveMarketData:
         factor = self.unit_factor_for(row)
         if factor is None:
             return None
-        return _scale(self.max_close.get(row.ticker), factor)
+        return scale_amount(self.max_close.get(row.ticker), factor)
 
     def analyst_for(self, row):
         """(consensus, count, target) with the target in the row's unit.
@@ -135,7 +129,7 @@ class LiveMarketData:
         consensus, n_analysts, target = analyst
         factor = self.unit_factor_for(row)
         return (consensus, n_analysts,
-                None if factor is None else _scale(target, factor))
+                None if factor is None else scale_amount(target, factor))
 
 
 # -----------------------------------------------------------------------------

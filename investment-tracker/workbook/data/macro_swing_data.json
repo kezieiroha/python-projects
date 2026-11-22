@@ -1,146 +1,175 @@
 [
   {
     "ticker": "MSTR",
+    "ccy": "USD",
     "macro_lo": 13.26,
     "macro_hi": 543.0
   },
   {
     "ticker": "COIN",
+    "ccy": "USD",
     "macro_lo": 31.83,
     "macro_hi": 444.65
   },
   {
     "ticker": "CEG",
+    "ccy": "USD",
     "macro_lo": 40.73,
     "macro_hi": 411.68
   },
   {
     "ticker": "TLN",
+    "ccy": "USD",
     "macro_lo": 49.5,
     "macro_hi": 451.28
   },
   {
     "ticker": "GEV",
+    "ccy": "USD",
     "macro_lo": 118.56,
     "macro_hi": 948.38
   },
   {
     "ticker": "XOM",
+    "ccy": "USD",
     "macro_lo": 52.75,
     "macro_hi": 171.23
   },
   {
     "ticker": "COP",
+    "ccy": "USD",
     "macro_lo": 61.71,
     "macro_hi": 134.87
   },
   {
     "ticker": "MRVL",
+    "ccy": "USD",
     "macro_lo": 34.65,
     "macro_hi": 126.99
   },
   {
     "ticker": "PLTR",
+    "ccy": "USD",
     "macro_lo": 5.92,
     "macro_hi": 207.52
   },
   {
     "ticker": "CCJ",
+    "ccy": "USD",
     "macro_lo": 17.86,
     "macro_hi": 135.24
   },
   {
     "ticker": "NKE",
+    "ccy": "USD",
     "macro_lo": 77.22,
     "macro_hi": 166.63
   },
   {
     "ticker": "PANW",
+    "ccy": "USD",
     "macro_lo": 68.37,
     "macro_hi": 223.61
   },
   {
     "ticker": "RKLB",
+    "ccy": "USD",
     "macro_lo": 3.48,
     "macro_hi": 99.58
   },
   {
     "ticker": "NVDA",
+    "ccy": "USD",
     "macro_lo": 10.8,
     "macro_hi": 212.17
   },
   {
     "ticker": "AMZN",
+    "ccy": "USD",
     "macro_lo": 81.69,
     "macro_hi": 258.6
   },
   {
     "ticker": "MSFT",
+    "ccy": "USD",
     "macro_lo": 207.39,
     "macro_hi": 552.24
   },
   {
     "ticker": "META",
+    "ccy": "USD",
     "macro_lo": 87.4,
     "macro_hi": 794.38
   },
   {
     "ticker": "GOOGL",
+    "ccy": "USD",
     "macro_lo": 82.66,
     "macro_hi": 348.75
   },
   {
     "ticker": "NFLX",
+    "ccy": "USD",
     "macro_lo": 16.27,
     "macro_hi": 134.12
   },
   {
     "ticker": "XRP-USD",
+    "ccy": "USD",
     "macro_lo": 0.29,
     "macro_hi": 3.84
   },
   {
     "ticker": "ETH-USD",
+    "ccy": "USD",
     "macro_lo": 896.11,
     "macro_hi": 4953.73
   },
   {
     "ticker": "BTC",
+    "ccy": "USD",
     "macro_lo": 15599.05,
     "macro_hi": 126198.07
   },
   {
     "ticker": "VWRP.L",
+    "ccy": "GBP",
     "macro_lo": 75.24,
     "macro_hi": 140.92
   },
   {
     "ticker": "SMGB.L",
+    "ccy": "GBP",
     "macro_lo": 13.79,
     "macro_hi": 55.76
   },
   {
     "ticker": "VUSA.L",
+    "ccy": "GBP",
     "macro_lo": 53.8,
     "macro_hi": 107.01
   },
   {
     "ticker": "SMT.L",
+    "ccy": "GBp",
     "macro_lo": 670.47,
     "macro_hi": 1568.18
   },
   {
     "ticker": "TSLA",
+    "ccy": "USD",
     "macro_lo": 101.81,
     "macro_hi": 498.83
   },
   {
     "ticker": "INTC",
+    "ccy": "USD",
     "macro_lo": 23.4,
     "macro_hi": 68.49
   },
   {
     "ticker": "MNTN.L",
+    "ccy": "USD",
     "macro_lo": 0.83,
     "macro_hi": 3.08
   }

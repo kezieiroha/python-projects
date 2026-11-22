@@ -22,9 +22,12 @@ Nothing from steps 4 to 6 is ever written back to the JSON.
 from __future__ import annotations
 
 from modules.calculations import (
+    declared_unit_factor,
     effective_ath,
     is_known_unit,
     note_issues,
+    same_declared_unit,
+    scale_amount,
     unit_factor,
 )
 from modules.data_store import (
@@ -171,16 +174,21 @@ def apply_effective_ath(rows, live, warn=print):
     Effective ATH = max(stored ATH, highest completed close since ANCHOR_START),
     with the highest close converted into each row's own unit. Applied in
     memory only, so Fib levels, status and upside use it on every sheet while
-    the JSON stays as curated. Returns (rows, updates) where ``updates`` maps
-    ticker to (stored_ath, effective_ath) for every superseded value, and each
-    row is reported so the JSON can be updated by hand.
+    the JSON stays as curated.
+
+    Returns (rows, updates). ``updates`` maps each lifted row's identity,
+    ``row.identity(index)`` with ``index`` its position in this full portfolio
+    list, to (stored_ath, effective_ath). Keying by row rather than ticker
+    means only the rows actually lifted are highlighted, even when another row
+    sharing the ticker kept its stored ATH. Each lift is reported so the JSON
+    can be updated by hand.
 
     Manual rows and up-direction rows are skipped: their levels are not derived
     from an ATH. A row whose currency cannot be converted has no highest close
     and keeps its stored ATH.
     """
     updates, reported, out = {}, set(), []
-    for row in rows:
+    for index, row in enumerate(rows):
         ticker = _ticker_of(row)
         max_close = live.max_close_for(row)
         if (row.is_section or row.is_manual or not row.has_fib_anchors
@@ -202,9 +210,58 @@ def apply_effective_ath(rows, live, warn=print):
             warn(f"[ATH] {ticker} ({row.ccy}): stored cycle ATH {row.macro_hi} "
                  f"superseded by highest close {new_hi}. Update macro_hi in "
                  f"portfolio_rows.json.")
-        updates.setdefault(ticker, (row.macro_hi, new_hi))
-        out.append(row.replace(macro_hi=new_hi))
+        lifted = row.replace(macro_hi=new_hi)
+        updates[lifted.identity(index)] = (row.macro_hi, new_hi)
+        out.append(lifted)
     return out, updates
+
+
+def _live_in_unit(store, live, ticker, ccy):
+    """A raw live amount for ``ticker`` converted into ``ccy``, or None."""
+    factor = declared_unit_factor(live.currency.get(ticker), ccy)
+    if factor is None or store.get(ticker) is None:
+        return None
+    return scale_amount(store[ticker], factor)
+
+
+def resolve_swing_quote(swing, rows, live, warn=print):
+    """(current, highest close) for a swing anchor, in the swing's own unit.
+
+    The answer must not depend on portfolio row order, so:
+
+    1. A usable live quote, converted directly from the provider's currency
+       into ``swing.ccy``, is preferred.
+    2. Otherwise stored row prices are used: rows in exactly the swing's unit
+       first, else any row whose unit converts. If the preferred candidates
+       disagree after conversion (for example 12 GBP and 1,300p), the price is
+       ambiguous: a warning is printed and the current price is omitted.
+
+    The highest close comes from live history only, converted the same way.
+    """
+    ticker = swing.ticker
+    current = _live_in_unit(live.prices, live, ticker, swing.ccy)
+    if current is None:
+        priced = [r for r in rows
+                  if not r.is_section and r.ticker == ticker and r.current is not None]
+        exact = [r for r in priced if same_declared_unit(r.ccy, swing.ccy)]
+        tier = exact or [r for r in priced
+                         if declared_unit_factor(r.ccy, swing.ccy) is not None]
+        values = sorted({
+            scale_amount(r.current, declared_unit_factor(r.ccy, swing.ccy))
+            for r in tier
+        })
+        if len(values) == 1:
+            current = values[0]
+        elif len(values) > 1:
+            warn(f"[swing] {ticker}: stored prices disagree in {swing.ccy} "
+                 f"({', '.join(f'{v:g}' for v in values)}); current price omitted "
+                 f"on the Fib Methodology sheet.")
+    return current, _live_in_unit(live.max_close, live, ticker, swing.ccy)
+
+
+def resolve_swing_quotes(swings, rows, live, warn=print):
+    """Map each swing ticker to ``resolve_swing_quote`` for the methodology sheet."""
+    return {s.ticker: resolve_swing_quote(s, rows, live, warn=warn) for s in swings}
 
 
 def report_note_issues(rows, warn=print):

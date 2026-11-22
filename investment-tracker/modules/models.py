@@ -57,7 +57,7 @@ ROW_FIELDS = (
     "ttm_pe", "fwd_pe", "de", "margin", "notes", "rtype", "manual",
 )
 
-MACRO_SWING_FIELDS = ("ticker", "macro_lo", "macro_hi")
+MACRO_SWING_FIELDS = ("ticker", "ccy", "macro_lo", "macro_hi")
 
 
 def _clean(value):
@@ -163,17 +163,33 @@ class PortfolioRow:
 class MacroSwingRow:
     """A historical macro swing shown on the Fib Methodology sheet.
 
-    Only the anchors are stored. Current price, AL1 and status are computed at
-    run time from live data, so this sheet can no longer show stale values.
+    Only the anchors and their unit are stored. Current price, AL1 and status
+    are computed at run time from live data, so this sheet can no longer show
+    stale values. ``ccy`` is required: the current price and highest close are
+    converted into it, so the levels never depend on which portfolio row
+    carrying the ticker happens to come first.
     """
 
     ticker: str = ""
+    ccy: str | None = None
     macro_lo: float | None = None
     macro_hi: float | None = None
 
     @classmethod
     def from_dict(cls, data):
         return cls(**{k: data.get(k) for k in MACRO_SWING_FIELDS})
+
+
+class StaticEntry(NamedTuple):
+    """One fallback entry from ma_data.json or analyst_data.json.
+
+    ``ccy`` is the unit its price amounts were recorded in, or None when the
+    file does not say (a legacy bare array, or an unverified source). Amounts
+    with no unit are withheld rather than guessed.
+    """
+
+    ccy: str | None
+    values: tuple
 
 
 class MovingAverages(NamedTuple):

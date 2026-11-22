@@ -91,10 +91,10 @@ If `yfinance` cannot reach Yahoo Finance, the script falls back to the static va
 | 2022 bear market lows | Edit `workbook/data/portfolio_rows.json` |
 | Cycle ATHs | Edit `workbook/data/portfolio_rows.json` |
 | Thesis / notes | Edit `workbook/data/portfolio_rows.json` |
-| Fib Methodology macro swing anchors | Edit `workbook/data/macro_swing_data.json` (anchors only; current price and status are computed) |
+| Fib Methodology macro swing anchors | Edit `workbook/data/macro_swing_data.json`: `ticker`, `ccy` (required) and the anchors; current price and status are computed in that unit |
 | Manual-level direction | Add `"direction": "up"` to rows where a higher reading is the alert (VIX, TNX, DXY) |
-| Fallback moving averages | Edit `workbook/data/ma_data.json` |
-| Fallback analyst consensus / targets | Edit `workbook/data/analyst_data.json` |
+| Fallback moving averages | Edit `workbook/data/ma_data.json`: `{"ccy": "GBp", "values": [...]}` per ticker; an entry without `ccy` is withheld with a warning |
+| Fallback analyst consensus / targets | Edit `workbook/data/analyst_data.json`, same shape; without `ccy` the target is withheld and consensus kept |
 | Provider ticker lists and aliases | Edit `workbook/data/market_sources.json` |
 | Adding a new ticker | Run `python3 build_alert_levels.py --add TICKER` |
 

@@ -24,6 +24,7 @@ from modules.calculations import (
     classify_row,
     classify_zone,
     d5_flag,
+    declared_unit_factor,
     effective_ath,
     established_eps_unit,
     exchange_for,
@@ -43,9 +44,9 @@ from modules.market_data import (
     fetch_ticker,
     moving_averages,
 )
-from modules.models import D5View, PortfolioRow
+from modules.models import D5View, MacroSwingRow, PortfolioRow, StaticEntry
 from workbook.context import SheetContext
-from workbook.styles import eps_text
+from workbook.styles import eps_text, money
 from workbook.summary import (
     GROUP_BROKEN,
     GROUP_BUY,
@@ -79,7 +80,7 @@ class EffectiveAthTest(unittest.TestCase):
         messages = []
         rows, updates = portfolio.apply_effective_ath([row], live, warn=messages.append)
         self.assertEqual(rows[0].macro_hi, 345.0)
-        self.assertEqual(updates["AAPL"], (288.35, 345.0))
+        self.assertEqual(updates[rows[0].identity(0)], (288.35, 345.0))
         self.assertTrue(any("AAPL" in m and "288.35" in m for m in messages))
         zone = classify_row(rows[0])
         self.assertGreater(zone.al1, 225.52)
@@ -511,7 +512,7 @@ class CurrencyMismatchTest(unittest.TestCase):
     def test_static_fallback_is_used_for_a_withheld_row(self):
         row = stock(ticker="GRA", ccy="USD", current=15.0)
         ctx = SheetContext(run_date="d", data_source="s", live=self._live(),
-                           ma_data={"GRA": (1.0, 2.0, 3.0, 4.0, 5.0)})
+                           ma_data={"GRA": StaticEntry("USD", (1.0, 2.0, 3.0, 4.0, 5.0))})
         self.assertEqual(ctx.moving_averages_for(row).d200, 5.0)
         self.assertIsNone(ctx.d5_for(row))
 
@@ -604,6 +605,153 @@ class DownBoundaryTest(unittest.TestCase):
 
     def test_exact_anchor_low_is_not_broken(self):
         self.assertEqual(classify_zone(100.0, 100.0, 200.0).rank, RANK_DEEP)
+
+
+class StaticFallbackUnitsTest(unittest.TestCase):
+    """Static MAs and analyst targets are shown in each row's own unit."""
+
+    pounds = stock(asset="Pounds", ticker="AB.L", ccy="GBP", current=12.0,
+                   macro_lo=5.0, macro_hi=15.0)
+    pence = stock(asset="Pence", ticker="AB.L", ccy="GBp", current=1200.0,
+                  macro_lo=500.0, macro_hi=1500.0)
+
+    def test_pounds_and_pence_rows_convert_the_same_fallback(self):
+        ctx = SheetContext(
+            run_date="d", data_source="s",
+            ma_data={"AB.L": StaticEntry("GBP", (11.0, 10.5, 10.2, 9.9, 10.0))},
+            analyst_data={"AB.L": StaticEntry("GBP", ("Buy", 6, 15.0))},
+        )
+        self.assertEqual(ctx.moving_averages_for(self.pounds).d200, 10.0)
+        self.assertEqual(ctx.moving_averages_for(self.pence).d200, 1000.0)
+        self.assertEqual(money(ctx.analyst_for(self.pounds).target, "GBP"), "GBP 15")
+        self.assertEqual(money(ctx.analyst_for(self.pence).target, "GBp"), "1,500p")
+
+    def test_entries_without_a_unit_are_withheld_with_one_warning(self):
+        import json
+        import tempfile
+        from pathlib import Path
+        from modules.data_store import load_unit_map
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "analyst_data.json"
+            path.write_text(json.dumps({
+                "AB.L": ["Buy", 6, 15.0],                       # legacy array
+                "CD.L": {"values": ["Hold", 3, 9.0]},           # object, no ccy
+                "EF": {"ccy": "USD", "values": ["Buy", 9, 50.0]},
+            }))
+            warnings = []
+            entries = load_unit_map(path, "analyst data", warn=warnings.append)
+
+        self.assertEqual(len(warnings), 2)
+        self.assertTrue(all("analyst_data.json" in w for w in warnings))
+        self.assertTrue(any("AB.L" in w for w in warnings))
+        self.assertTrue(any("CD.L" in w for w in warnings))
+        ctx = SheetContext(run_date="d", data_source="s", analyst_data=entries)
+        withheld = ctx.analyst_for(self.pence)
+        self.assertEqual((withheld.consensus, withheld.n_analysts, withheld.target),
+                         ("Buy", 6, None))
+        self.assertEqual(ctx.analyst_for(stock(ticker="EF")).target, 50.0)
+
+    def test_declared_readings_only_match_the_same_reading(self):
+        entry = StaticEntry("PCT", (4.0, 4.1, 4.2, 4.3, 4.4))
+        ctx = SheetContext(run_date="d", data_source="s", ma_data={"TNX": entry})
+        self.assertEqual(ctx.moving_averages_for(stock(ticker="TNX", ccy="PCT")).d200, 4.4)
+        self.assertIsNone(ctx.moving_averages_for(stock(ticker="TNX", ccy="IDX")).d200)
+        self.assertIsNone(ctx.moving_averages_for(stock(ticker="TNX", ccy="USD")).d200)
+        self.assertEqual(declared_unit_factor("IDX", "IDX"), 1)
+        self.assertIsNone(declared_unit_factor(None, "USD"))
+
+
+class SwingQuoteTest(unittest.TestCase):
+    """Fib Methodology resolves price in the swing's unit, whatever the row order."""
+
+    swing = MacroSwingRow(ticker="AB.L", ccy="GBP", macro_lo=6.0, macro_hi=18.0)
+
+    def _status(self, rows, live=None):
+        from openpyxl import Workbook
+        from workbook import methodology
+
+        live = live or LiveMarketData()
+        warnings = []
+        quotes = portfolio.resolve_swing_quotes([self.swing], rows, live,
+                                                warn=warnings.append)
+        ws = Workbook().active
+        methodology.render(ws, [self.swing],
+                           SheetContext(run_date="d", data_source="s", live=live,
+                                        swing_quotes=quotes))
+        cells = [r for r in ws.iter_rows() if r[0].value == "AB.L"]
+        return quotes["AB.L"][0], cells[0][5].value, warnings
+
+    def _both_orders(self, rows, live=None):
+        first = self._status(rows, live)
+        second = self._status(list(reversed(rows)), live)
+        self.assertEqual(first, second)
+        return first
+
+    def test_equivalent_prices_give_the_same_signal_in_both_orders(self):
+        rows = [stock(asset="P", ticker="AB.L", ccy="GBP", current=12.0),
+                stock(asset="Q", ticker="AB.L", ccy="GBp", current=1200.0)]
+        current, status, _ = self._both_orders(rows)
+        self.assertEqual(current, 12.0)
+        self.assertIn("AL2 HIT", status)
+
+    def test_exact_unit_row_is_preferred_over_a_conflicting_conversion(self):
+        rows = [stock(asset="P", ticker="AB.L", ccy="GBP", current=12.0),
+                stock(asset="Q", ticker="AB.L", ccy="GBp", current=1300.0)]
+        current, status, warnings = self._both_orders(rows)
+        self.assertEqual(current, 12.0)
+        self.assertEqual(warnings, [])
+
+    def test_equally_preferred_conflicting_prices_are_omitted(self):
+        rows = [stock(asset="P", ticker="AB.L", ccy="GBp", current=1200.0),
+                stock(asset="Q", ticker="AB.L", ccy="GBX", current=1300.0)]
+        current, status, warnings = self._both_orders(rows)
+        self.assertIsNone(current)
+        self.assertEqual(status, "No current price this run")
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("AB.L", warnings[0])
+
+    def test_live_quote_is_preferred_and_converted(self):
+        rows = [stock(asset="P", ticker="AB.L", ccy="GBp", current=1200.0),
+                stock(asset="Q", ticker="AB.L", ccy="GBX", current=1300.0)]
+        live = LiveMarketData(prices={"AB.L": 1250.0}, currency={"AB.L": "GBp"},
+                              max_close={"AB.L": 2000.0})
+        current, _status, warnings = self._both_orders(rows, live)
+        self.assertEqual(current, 12.5)
+        self.assertEqual(warnings, [])
+        _cur, max_close = portfolio.resolve_swing_quote(self.swing, rows, live)
+        self.assertEqual(max_close, 20.0)
+
+
+class AthHighlightTest(unittest.TestCase):
+    """Only the rows whose ATH was actually lifted are amber."""
+
+    def test_highlight_follows_the_row_not_the_ticker(self):
+        from openpyxl import Workbook
+        from workbook import alert_levels
+        from workbook.styles import CHECK_BG
+
+        rows = [
+            stock(asset="Excluded", ticker="EXC", current=150.0),
+            PortfolioRow.from_dict({"asset": "SECTION", "rtype": "SECTION"}),
+            stock(asset="Lifted", ticker="AB.L", ccy="GBp", current=1200.0,
+                  macro_lo=500.0, macro_hi=1500.0),
+            stock(asset="Kept", ticker="AB.L", ccy="USD", current=15.0,
+                  macro_lo=5.0, macro_hi=18.0),
+        ]
+        live = LiveMarketData(currency={"AB.L": "GBp"}, max_close={"AB.L": 1800.0})
+        lifted, updates = portfolio.apply_effective_ath(rows, live,
+                                                        warn=lambda *_: None)
+        self.assertEqual(list(updates), [lifted[2].identity(2)])
+
+        ws = Workbook().active
+        ctx = SheetContext(run_date="d", data_source="s", live=live,
+                           excluded_tickers=frozenset({"EXC"}), ath_updates=updates)
+        alert_levels.render(ws, lifted, ctx)
+        fills = {r[0].value: r[5].fill.fgColor.rgb[-6:]
+                 for r in ws.iter_rows() if r[0].value in ("Lifted", "Kept")}
+        self.assertEqual(fills["Lifted"], CHECK_BG)
+        self.assertNotEqual(fills["Kept"], CHECK_BG)
 
 
 if __name__ == "__main__":

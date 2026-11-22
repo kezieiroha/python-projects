@@ -9,9 +9,10 @@ silently produce a misleading workbook.
 from __future__ import annotations
 
 import json
+import os
 
 from modules.calculations import validate_manual_levels
-from modules.models import MacroSwingRow, PortfolioRow
+from modules.models import MacroSwingRow, PortfolioRow, StaticEntry
 
 
 def load_portfolio_rows(path):
@@ -48,13 +49,21 @@ def save_portfolio_rows(path, rows):
 
 
 def load_macro_swing_data(path):
-    """Load historical macro swing examples for the methodology sheet."""
+    """Load historical macro swing examples for the methodology sheet.
+
+    Every anchor must declare ``ccy``: without it the levels cannot be read
+    against a current price, so a missing unit fails loudly, naming the row.
+    """
     try:
         with open(path, "r", encoding="utf-8") as fh:
             data = json.load(fh)
         if not isinstance(data, list):
             raise ValueError("expected a list of row objects")
-        return [MacroSwingRow.from_dict(item) for item in data if isinstance(item, dict)]
+        swings = [MacroSwingRow.from_dict(item) for item in data if isinstance(item, dict)]
+        for swing in swings:
+            if not (swing.ccy and str(swing.ccy).strip()):
+                raise ValueError(f"anchor {swing.ticker or '(no ticker)'} has no ccy")
+        return swings
     except Exception as ex:
         raise RuntimeError(f"Could not load macro swing data from {path}: {ex}") from ex
 
@@ -71,14 +80,27 @@ def load_json_object(path, label):
         raise RuntimeError(f"Could not load {label} from {path}: {ex}") from ex
 
 
-def load_tuple_map(path, label):
-    """Load a required JSON object whose values should behave like tuples.
+def load_unit_map(path, label, warn=print):
+    """Load a fallback map (``ma_data.json``, ``analyst_data.json``) with units.
 
-    Used for the fallback maps (``ma_data.json``, ``analyst_data.json``) whose
-    values are stored as arrays and consumed as fixed-shape tuples.
+    Each value is either ``{"ccy": "GBp", "values": [...]}`` or a legacy bare
+    array. Returns ticker -> StaticEntry. An entry with no unit (legacy array,
+    or an object without ``ccy``) still loads, because these files are optional
+    fallbacks, but its price amounts will be withheld; one warning is printed
+    per file and ticker so the unit can be added by hand.
     """
-    data = load_json_object(path, label)
-    return {
-        str(k): tuple(v) if isinstance(v, list) else v
-        for k, v in data.items()
-    }
+    name = os.path.basename(str(path))
+    entries = {}
+    for ticker, value in load_json_object(path, label).items():
+        if isinstance(value, dict):
+            ccy, values = value.get("ccy"), value.get("values")
+        else:
+            ccy, values = None, value
+        ccy = ccy.strip() if isinstance(ccy, str) and ccy.strip() else None
+        entries[str(ticker)] = StaticEntry(
+            ccy, tuple(values) if isinstance(values, list) else ())
+        if ccy is None:
+            warn(f"[fallback] {name} {ticker}: no unit recorded; static price "
+                 f"amounts withheld. Add \"ccy\" to the entry once its source "
+                 f"unit is verified.")
+    return entries

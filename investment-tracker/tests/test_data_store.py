@@ -74,13 +74,25 @@ class DataStoreTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "macro.json"
             path.write_text(json.dumps([
-                {"ticker": "MSTR", "macro_lo": 13.26, "macro_hi": 543.0,
-                 "current": 132.36, "status": "stale"}
+                {"ticker": "MSTR", "ccy": "USD", "macro_lo": 13.26,
+                 "macro_hi": 543.0, "current": 132.36, "status": "stale"}
             ]))
             swing = load_macro_swing_data(path)[0]
             self.assertEqual(swing.ticker, "MSTR")
             self.assertEqual(swing.macro_hi, 543.0)
+            self.assertEqual(swing.ccy, "USD")
             self.assertFalse(hasattr(swing, "current"))
+
+    def test_macro_swing_anchor_without_ccy_fails_loudly(self):
+        """The unit is essential to reading the levels, so it is required."""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "macro.json"
+            path.write_text(json.dumps([
+                {"ticker": "MSTR", "macro_lo": 13.26, "macro_hi": 543.0}
+            ]))
+            with self.assertRaises(RuntimeError) as ctx:
+                load_macro_swing_data(path)
+            self.assertIn("MSTR", str(ctx.exception))
 
     def test_manual_levels_contradicting_direction_fail_loudly(self):
         with tempfile.TemporaryDirectory() as tmp:

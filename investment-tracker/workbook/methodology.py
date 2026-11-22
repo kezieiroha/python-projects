@@ -1,10 +1,12 @@
 """Fib Methodology sheet.
 
 Explains the alert-level framework and shows historical macro swing examples.
-Only the anchors are stored (workbook/data/macro_swing_data.json). Current
-price comes from this run's portfolio rows (live when refreshed), the cycle ATH
-is the effective ATH, and AL1 and status are computed with the same
-classify_zone used everywhere else, so this sheet cannot go stale.
+Only the anchors and their unit are stored (workbook/data/macro_swing_data.json).
+Current price and highest close are resolved in each anchor's own unit before
+rendering (portfolio.resolve_swing_quote: live quote first, then stored row
+prices, never dependent on row order). The cycle ATH is the effective ATH, and
+AL1 and status are computed with the same classify_zone used everywhere else,
+so this sheet cannot go stale.
 """
 
 from openpyxl.utils import get_column_letter
@@ -54,25 +56,11 @@ LEVELS = [
 ]
 
 
-def priced_rows(rows):
-    """Map ticker to this run's first priced portfolio row for that ticker.
-
-    The row, not just its price, is returned so the swing table reads the
-    current price and the highest close in that same row's unit.
-    """
-    priced = {}
-    for row in rows:
-        if row.is_section or row.current is None or not row.ticker:
-            continue
-        priced.setdefault(row.ticker, row)
-    return priced
-
-
-def render(ws, macro_swing_rows, rows, ctx):
+def render(ws, macro_swing_rows, ctx):
     """Write the Fib Methodology sheet.
 
-    ``rows`` are the run's prepared portfolio rows (source of current price);
-    ``ctx`` supplies the highest close used for the effective ATH.
+    ``ctx.swing_quotes`` supplies each anchor's current price and highest
+    close, already in the anchor's unit.
     """
     def write(row, values, bold=False, bg=None, colors=None):
         for ci, val in enumerate(values, 1):
@@ -115,11 +103,10 @@ def render(ws, macro_swing_rows, rows, ctx):
           bold=True, bg="37474F", colors=["FFFFFF"] * 6)
     row += 1
 
-    priced = priced_rows(rows)
     for swing in macro_swing_rows:
-        source = priced.get(swing.ticker)
-        current = source.current if source else None
-        max_close = ctx.max_close_for(source) if source else None
+        # Resolved in the swing's own unit, independent of row order
+        # (portfolio.resolve_swing_quote).
+        current, max_close = ctx.swing_quotes.get(swing.ticker, (None, None))
         macro_hi = effective_ath(swing.macro_hi, max_close)
         zone = classify_zone(current, swing.macro_lo, macro_hi)
         bg, fc, _short, _plain = ZONE_STYLES[zone.rank]

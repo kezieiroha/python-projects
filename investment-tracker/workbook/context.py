@@ -11,7 +11,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from modules.calculations import EXCHANGE_ORDER, assess_fundamentals, resolve_eps
+from modules.calculations import (
+    EXCHANGE_ORDER,
+    assess_fundamentals,
+    declared_unit_factor,
+    resolve_eps,
+    scale_amount,
+)
 from modules.market_data import LiveMarketData
 from modules.models import AnalystView, EpsView, MovingAverages
 
@@ -20,16 +26,19 @@ from modules.models import AnalystView, EpsView, MovingAverages
 class SheetContext:
     """Everything a renderer needs beyond the portfolio rows themselves.
 
-    ma_data       ticker -> static fallback MA tuple, in the row's own unit
-    analyst_data  ticker -> static fallback analyst tuple, in the row's unit
+    ma_data       ticker -> StaticEntry (unit, MA tuple), static fallback
+    analyst_data  ticker -> StaticEntry (unit, analyst tuple), static fallback
     live          raw LiveMarketData, keyed by ticker in provider units
-    ath_updates   ticker -> (stored ATH, effective ATH) where superseded
+    ath_updates   row identity -> (stored ATH, effective ATH) where superseded
+    swing_quotes  swing ticker -> (current, highest close) in the swing's unit
     d5_basis      exchange label -> date of the completed session used
 
     Every price-like lookup takes the row, not the ticker, because rows that
     share a ticker can store different units. Live values are converted into
-    ``row.ccy`` by ``LiveMarketData``; a row whose currency cannot be converted
-    falls back to the static value, or to None where there is none.
+    ``row.ccy`` by ``LiveMarketData``; when that is not possible the static
+    fallback is used, converted from its own recorded unit. Static amounts with
+    no recorded unit, or a unit that does not convert, are withheld (None);
+    analyst consensus and count are dimensionless and always kept.
     """
 
     run_date: str
@@ -41,19 +50,54 @@ class SheetContext:
     macro_tickers: frozenset = frozenset()
     sentiment_tickers: frozenset = frozenset()
     ath_updates: dict = field(default_factory=dict)
+    swing_quotes: dict = field(default_factory=dict)
     d5_basis: dict = field(default_factory=dict)
 
+    @staticmethod
+    def _static_factor(entry, row):
+        """Unit factor from a static entry into the row's unit, or None."""
+        return declared_unit_factor(entry.ccy, row.ccy)
+
     def moving_averages_for(self, row):
-        """Always returns a MovingAverages; missing entries are all-None."""
+        """Always returns a MovingAverages; missing or withheld entries are all-None."""
         live = self.live.moving_averages_for(row)
+        if live is not None:
+            return MovingAverages.from_sequence(live)
+        entry = self.ma_data.get(row.ticker)
+        factor = self._static_factor(entry, row) if entry else None
+        if factor is None:
+            return MovingAverages.from_sequence(None)
         return MovingAverages.from_sequence(
-            live if live is not None else self.ma_data.get(row.ticker))
+            tuple(scale_amount(v, factor) for v in entry.values))
 
     def analyst_for(self, row):
-        """Returns an AnalystView, or None when no consensus is available."""
+        """Returns an AnalystView, or None when no consensus is available.
+
+        A static target whose unit is missing or does not convert is None;
+        the consensus label and analyst count are kept.
+        """
         live = self.live.analyst_for(row)
+        if live is not None:
+            return AnalystView.from_sequence(live)
+        entry = self.analyst_data.get(row.ticker)
+        if entry is None or not entry.values:
+            return None
+        if len(entry.values) < 3:
+            # Consensus and count only: no price amount to convert.
+            return AnalystView.from_sequence(entry.values)
+        consensus, n_analysts, target = entry.values[:3]
+        factor = self._static_factor(entry, row)
         return AnalystView.from_sequence(
-            live if live is not None else self.analyst_data.get(row.ticker))
+            (consensus, n_analysts,
+             None if factor is None else scale_amount(target, factor)))
+
+    def ath_superseded(self, row, index):
+        """True when this row, at its portfolio index, had its ATH lifted.
+
+        ``index`` is the row's position in the full portfolio list (section
+        headers and excluded rows included), so the lookup cannot shift.
+        """
+        return row.identity(index) in self.ath_updates
 
     def eps_for(self, ticker):
         """Returns an EpsView, or None when no live/verified EPS was fetched."""

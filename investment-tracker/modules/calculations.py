@@ -280,6 +280,52 @@ def unit_factor(provider_ccy, row_ccy):
     return None
 
 
+def _declared_code(ccy):
+    """Normalised code for a declared unit, including non-currency readings.
+
+    Unlike ``_unit_code`` this keeps PCT and IDX, so a declared reading can be
+    matched against a row's unit. Returns None only when nothing is declared.
+    """
+    if not ccy or not str(ccy).strip():
+        return None
+    code = str(ccy).strip()
+    if code.upper() in NON_CURRENCY_UNITS:
+        return code.upper()
+    return _unit_code(code)
+
+
+def same_declared_unit(a, b):
+    """True when both units are declared and identical (GBp equals GBX)."""
+    code = _declared_code(a)
+    return code is not None and code == _declared_code(b)
+
+
+def declared_unit_factor(from_ccy, to_ccy):
+    """Multiplier between two declared units, or None when it cannot be trusted.
+
+    Stricter than ``unit_factor``, which treats an unknown side as "nothing to
+    convert". Used for stored values whose unit must be known before they are
+    shown against a row: static fallbacks and swing anchors.
+
+    - either side undeclared: None (unit unknown, withhold);
+    - a non-currency reading (PCT, IDX): 1 only against the same reading;
+    - currencies: as ``unit_factor`` (1, 0.01, 100, or None).
+    """
+    source, target = _declared_code(from_ccy), _declared_code(to_ccy)
+    if source is None or target is None:
+        return None
+    if source in NON_CURRENCY_UNITS or target in NON_CURRENCY_UNITS:
+        return 1 if source == target else None
+    return unit_factor(from_ccy, to_ccy)
+
+
+def scale_amount(value, factor):
+    """Multiply a price-like value by a unit factor, keeping None as None."""
+    if value is None or factor == 1:
+        return value
+    return round(value * factor, 4)
+
+
 def units_mismatch(price, reference):
     """True when price and a reference level differ by roughly 100x either way."""
     if not price or not reference or price <= 0 or reference <= 0:

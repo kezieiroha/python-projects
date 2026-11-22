@@ -255,7 +255,7 @@ def _write_identity(ws, row, record, bg, check, ctx):
             num_fmt='#,##0.00' if record.current else None)
 
 
-def _write_fib_columns(ws, row, record, ctx):
+def _write_fib_columns(ws, row, record, ctx, index):
     """E-K: historical anchors, the range, and the four alert levels.
 
     Cycle ATH is the effective ATH. When it superseded the stored value the
@@ -264,7 +264,7 @@ def _write_fib_columns(ws, row, record, ctx):
     """
     _styled(ws, row, 5, record.macro_lo, bg=FIB_BG, color="0000FF",
             num_fmt='#,##0.00' if record.macro_lo else None)
-    superseded = record.ticker in ctx.ath_updates and not record.is_manual
+    superseded = ctx.ath_superseded(record, index) and not record.is_manual
     _styled(ws, row, 6, record.macro_hi,
             bg=CHECK_BG if superseded else FIB_BG,
             color=CHECK_FC if superseded else "0000FF", bold=superseded,
@@ -496,7 +496,10 @@ def render(ws, rows, ctx):
     _write_header(ws, ctx)
 
     row = 4
-    for record in rows:
+    # ``index`` is the record's position in the full portfolio list, counted
+    # before any section or excluded row is skipped, so it matches the row
+    # identity used for ATH updates.
+    for index, record in enumerate(rows):
         if record.ticker in ctx.excluded_tickers:
             continue
 
@@ -509,7 +512,7 @@ def render(ws, rows, ctx):
         check = ctx.fundamentals_for(record)
 
         _write_identity(ws, row, record, bg, check, ctx)
-        _write_fib_columns(ws, row, record, ctx)
+        _write_fib_columns(ws, row, record, ctx, index)
         _write_upside(ws, row, record)
         _write_status(ws, row, record, bg, check, ctx)
         _write_valuation(ws, row, record, ctx, check)

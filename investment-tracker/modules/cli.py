@@ -25,7 +25,7 @@ from modules.calculations import RANK_UNIT_CHECK, classify_row
 from modules.data_store import (
     load_json_object,
     load_macro_swing_data,
-    load_tuple_map,
+    load_unit_map,
 )
 from modules.market_data import (
     LiveMarketData,
@@ -121,7 +121,8 @@ def d5_basis(live):
     }
 
 
-def build_context(cfg, sources, live, ath_updates=None):
+def build_context(cfg, sources, live, ath_updates=None, swing_quotes=None,
+                  report=print):
     """Bundle static JSON fallbacks and raw live data for the renderers.
 
     ma_data tuple:      (W20 EMA, W50 EMA, M20 EMA, M50 EMA, D200 SMA)
@@ -130,6 +131,8 @@ def build_context(cfg, sources, live, ath_updates=None):
     Live values are not merged into the static maps here. They stay in
     ``live``, in provider units, and the context converts them per row, so a
     row whose currency cannot be converted still falls back to its static data.
+    Static entries carry their own unit; ``load_unit_map`` warns for any
+    without one, and their price amounts are withheld.
     EPS is intentionally not a static sidecar file: it comes from live sources
     or is derived from price / P/E while rendering.
     """
@@ -137,12 +140,14 @@ def build_context(cfg, sources, live, ath_updates=None):
         run_date=cfg.run_date,
         data_source=describe_source(cfg, live, fetch_list(cfg, sources)),
         excluded_tickers=cfg.excluded_tickers,
-        ma_data=load_tuple_map(cfg.ma_data_path, "MA data"),
-        analyst_data=load_tuple_map(cfg.analyst_data_path, "analyst data"),
+        ma_data=load_unit_map(cfg.ma_data_path, "MA data", warn=report),
+        analyst_data=load_unit_map(cfg.analyst_data_path, "analyst data",
+                                   warn=report),
         live=live,
         macro_tickers=frozenset(macro_tickers(sources)),
         sentiment_tickers=frozenset(sentiment_tickers(sources)),
         ath_updates=dict(ath_updates or {}),
+        swing_quotes=dict(swing_quotes or {}),
         d5_basis=d5_basis(live),
     )
 
@@ -170,16 +175,16 @@ def main(argv=None, report=print):
         aliases=sources.get("yahoo_aliases", {}),
     )
     rows, ath_updates = portfolio.apply_effective_ath(rows, live, warn=report)
-    ctx = build_context(cfg, sources, live, ath_updates)
+    swings = load_macro_swing_data(cfg.macro_swing_path)
+    swing_quotes = portfolio.resolve_swing_quotes(swings, rows, live, warn=report)
+    ctx = build_context(cfg, sources, live, ath_updates, swing_quotes, report=report)
 
     flagged = portfolio.report_note_issues(rows, warn=report)
     if flagged:
         report(f"[notes] {flagged} row(s) quote prices or statuses. Notes should "
                f"hold thesis text only; the generator computes the rest.")
 
-    workbook = build_workbook(
-        rows, load_macro_swing_data(cfg.macro_swing_path), ctx
-    )
+    workbook = build_workbook(rows, swings, ctx)
     workbook.save(cfg.output_path)
     report(f"Saved: {cfg.output_path}")
 
