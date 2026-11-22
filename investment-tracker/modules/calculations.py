@@ -319,6 +319,19 @@ def declared_unit_factor(from_ccy, to_ccy):
     return unit_factor(from_ccy, to_ccy)
 
 
+def live_unit_factor(provider_ccy, row_ccy):
+    """Multiplier for a live provider value into a row's unit, or None.
+
+    A row whose unit is a reading (PCT, IDX) takes the live value as it is:
+    the provider labels index and yield quotes with a currency that does not
+    apply. Every other row requires a declared, convertible provider unit, so
+    an unknown currency is withheld rather than assumed to match.
+    """
+    if _declared_code(row_ccy) in NON_CURRENCY_UNITS:
+        return 1
+    return declared_unit_factor(provider_ccy, row_ccy)
+
+
 def scale_amount(value, factor):
     """Multiply a price-like value by a unit factor, keeping None as None."""
     if value is None or factor == 1:

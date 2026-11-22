@@ -25,6 +25,7 @@ from modules.calculations import (
     declared_unit_factor,
     effective_ath,
     is_known_unit,
+    live_unit_factor,
     note_issues,
     same_declared_unit,
     scale_amount,
@@ -79,18 +80,22 @@ def report_unit_conversions(rows, live, warn=print):
     ticker.
 
     A pence/pounds difference is scaled. A genuine currency difference (a CAD
-    quote on a row stored as USD) cannot be scaled, so that row's live price,
-    moving averages, D5, highest close and analyst target are withheld and it
-    keeps its stored values. The warning names the row, both currencies and the
-    stored fallback price. Nothing wrong is shown, so the run continues.
+    quote on a row stored as USD), or a provider that reports no currency at
+    all, cannot be resolved, so that row's live price, moving averages, D5,
+    highest close and analyst target are withheld and it keeps its stored
+    values. The warning names the row, both units and the stored fallback
+    price. Nothing wrong is shown, so the run continues.
     """
     for row in rows:
-        if row.is_section or row.ticker not in live.currency:
+        if row.is_section or not live.has_amounts(row.ticker):
             continue
-        provider_ccy = live.currency[row.ticker]
+        provider_ccy = live.currency.get(row.ticker)
         factor = live.unit_factor_for(row)
         label = f"{row.ticker} ({row.asset})"
-        if factor is None:
+        if factor is None and provider_ccy is None:
+            warn(f"[units] {label}: provider reported no currency; live prices "
+                 f"withheld, using stored price {row.current}.")
+        elif factor is None:
             warn(f"[units] {label}: provider quotes {provider_ccy} but the row is "
                  f"stored as {row.ccy}; live prices withheld, using stored price "
                  f"{row.current}. Check ccy and anchors in portfolio_rows.json.")
@@ -217,8 +222,11 @@ def apply_effective_ath(rows, live, warn=print):
 
 
 def _live_in_unit(store, live, ticker, ccy):
-    """A raw live amount for ``ticker`` converted into ``ccy``, or None."""
-    factor = declared_unit_factor(live.currency.get(ticker), ccy)
+    """A raw live amount for ``ticker`` converted into ``ccy``, or None.
+
+    Same strict rule as the rows: an unknown provider currency is None.
+    """
+    factor = live_unit_factor(live.currency.get(ticker), ccy)
     if factor is None or store.get(ticker) is None:
         return None
     return scale_amount(store[ticker], factor)
@@ -226,6 +234,11 @@ def _live_in_unit(store, live, ticker, ccy):
 
 def resolve_swing_quote(swing, rows, live, warn=print):
     """(current, highest close) for a swing anchor, in the swing's own unit.
+
+    ``rows`` must be the stored rows captured before the live overlay
+    (``build`` returns them). The overlay rows already hold live prices, so
+    reading them would let a live quote rejected in step 1 back in as a
+    "stored" price.
 
     The answer must not depend on portfolio row order, so:
 
@@ -259,9 +272,19 @@ def resolve_swing_quote(swing, rows, live, warn=print):
     return current, _live_in_unit(live.max_close, live, ticker, swing.ccy)
 
 
-def resolve_swing_quotes(swings, rows, live, warn=print):
-    """Map each swing ticker to ``resolve_swing_quote`` for the methodology sheet."""
-    return {s.ticker: resolve_swing_quote(s, rows, live, warn=warn) for s in swings}
+def swing_key(swing):
+    """Key for a resolved swing quote: ticker and unit.
+
+    Two anchors for one ticker in different units (GBP and GBp) need their own
+    converted quotes, so the ticker alone is not enough.
+    """
+    return (swing.ticker, swing.ccy)
+
+
+def resolve_swing_quotes(swings, stored_rows, live, warn=print):
+    """Map ``swing_key`` to ``resolve_swing_quote`` for the methodology sheet."""
+    return {swing_key(s): resolve_swing_quote(s, stored_rows, live, warn=warn)
+            for s in swings}
 
 
 def report_note_issues(rows, warn=print):
@@ -312,7 +335,9 @@ def register_snapshot(live, snapshot):
     live.prices[snapshot.ticker] = snapshot.price
     live.moving_averages[snapshot.ticker] = snapshot.moving_averages
     live.fundamentals[snapshot.ticker] = snapshot.fundamentals
-    live.currency[snapshot.ticker] = snapshot.currency
+    if snapshot.currency:
+        # An unreported currency stays absent, so every reader withholds.
+        live.currency[snapshot.ticker] = snapshot.currency
     if snapshot.analyst:
         live.analyst[snapshot.ticker] = snapshot.analyst
     if snapshot.d5 is not None:
@@ -325,10 +350,12 @@ def refreshed_price(row, snapshot):
     """The snapshot price in the row's stored unit, or the row's own price.
 
     The JSON must hold prices in the row's ``ccy``, because offline runs compare
-    them with the stored anchors directly. A pence/pounds difference is scaled;
-    a currency difference that cannot be scaled keeps the stored price.
+    them with the stored anchors directly. A pence/pounds difference is scaled.
+    The same strict rule as the live overlay applies before anything is
+    written: a currency difference that cannot be scaled, or a snapshot with
+    no reported currency, keeps the stored price (PCT and IDX readings excepted).
     """
-    factor = unit_factor(snapshot.currency, row.ccy)
+    factor = live_unit_factor(snapshot.currency, row.ccy)
     if factor is None or snapshot.price is None:
         return row.current
     return snapshot.price if factor == 1 else round(snapshot.price * factor, 4)
@@ -385,13 +412,24 @@ def refresh_portfolio_rows(config, live, rows, rec_map, warn=print, fetch=fetch_
                 warn(f"[--add {ticker}] Not persisted because no prior row exists.")
             continue
 
+        is_new = ticker in config.add_tickers and ticker not in known_tickers
+        if is_new and not snapshot.currency:
+            # Without a currency the row's unit, and so its anchors, cannot be
+            # established. Defaulting to USD would persist a guess.
+            warn(f"[--add {ticker}] Provider reported no currency; not "
+                 f"persisted. Retry later or add the row by hand with its ccy.")
+            continue
+
         register_snapshot(live, snapshot)
         warn(
             f"[--add {ticker}] Fetched OK: cur={snapshot.price}, "
             f"ATH={snapshot.cycle_high}, 2022 low={snapshot.bear_low}"
         )
+        if not snapshot.currency:
+            warn(f"[--add {ticker}] Provider reported no currency; stored "
+                 f"price kept, ratios refreshed.")
 
-        if ticker in config.add_tickers and ticker not in known_tickers:
+        if is_new:
             rows.append(build_added_row(snapshot))
             known_tickers.add(ticker)
             changed = True
@@ -423,7 +461,12 @@ def refresh_portfolio_rows(config, live, rows, rec_map, warn=print, fetch=fetch_
 
 
 def build(config, live, rec_map, warn=print, fetch=fetch_ticker, aliases=None):
-    """Assemble the final portfolio rows for rendering.
+    """Assemble the portfolio rows for rendering.
+
+    Returns (rows, stored_rows). ``rows`` carry the live overlay. ``stored_rows``
+    are the same rows just before it (after ``--remove``, ``--add`` and refresh,
+    so prices are in each row's stored unit); anything that needs a stored
+    fallback independent of live data, such as the swing quotes, uses them.
 
     ``aliases`` maps portfolio tickers to provider symbols for ``--add``.
     """
@@ -434,10 +477,11 @@ def build(config, live, rec_map, warn=print, fetch=fetch_ticker, aliases=None):
     rows, _changed = refresh_portfolio_rows(
         config, live, rows, rec_map, warn=warn, fetch=fetch, aliases=aliases
     )
-    report_unit_conversions(rows, live, warn=warn)
-    rows = apply_live_overlay(rows, live)
+    stored_rows = list(rows)
+    report_unit_conversions(stored_rows, live, warn=warn)
+    rows = apply_live_overlay(stored_rows, live)
 
     if config.remove_items and not removed:
         warn("[--remove] No matching portfolio rows found.")
 
-    return rows
+    return rows, stored_rows

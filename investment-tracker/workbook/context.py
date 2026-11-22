@@ -30,7 +30,7 @@ class SheetContext:
     analyst_data  ticker -> StaticEntry (unit, analyst tuple), static fallback
     live          raw LiveMarketData, keyed by ticker in provider units
     ath_updates   row identity -> (stored ATH, effective ATH) where superseded
-    swing_quotes  swing ticker -> (current, highest close) in the swing's unit
+    swing_quotes  (ticker, ccy) -> (current, highest close) in that unit
     d5_basis      exchange label -> date of the completed session used
 
     Every price-like lookup takes the row, not the ticker, because rows that

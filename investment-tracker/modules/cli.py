@@ -170,13 +170,16 @@ def main(argv=None, report=print):
     sources = load_json_object(cfg.market_sources_path, "market sources")
 
     live = collect_live_data(cfg, sources, report=report)
-    rows = portfolio.build(
+    rows, stored_rows = portfolio.build(
         cfg, live, sources.get("recommendation_map", {}), warn=report,
         aliases=sources.get("yahoo_aliases", {}),
     )
     rows, ath_updates = portfolio.apply_effective_ath(rows, live, warn=report)
     swings = load_macro_swing_data(cfg.macro_swing_path)
-    swing_quotes = portfolio.resolve_swing_quotes(swings, rows, live, warn=report)
+    # Stored fallbacks come from the pre-overlay rows, so a live quote the
+    # swing's unit check rejected cannot return through an overlaid row.
+    swing_quotes = portfolio.resolve_swing_quotes(swings, stored_rows, live,
+                                                  warn=report)
     ctx = build_context(cfg, sources, live, ath_updates, swing_quotes, report=report)
 
     flagged = portfolio.report_note_issues(rows, warn=report)

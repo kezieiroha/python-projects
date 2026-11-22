@@ -19,8 +19,8 @@ from modules.calculations import (
     bar_is_complete,
     established_eps_unit,
     exchange_for,
+    live_unit_factor,
     scale_amount,
-    unit_factor,
 )
 from modules.models import D5View
 
@@ -58,9 +58,13 @@ class LiveMarketData:
     store different units (the same London line in pounds and in pence).
 
     Readers use the ``*_for(row)`` methods, which convert each value into that
-    row's stored unit (``row.ccy``). When the provider currency cannot be
-    converted to the row's (CAD quote, USD row) they return None, so the row
-    falls back to its stored values instead of mixing currencies.
+    row's stored unit (``row.ccy``). For a currency-denominated row the
+    provider currency must be known and convertible; otherwise (no currency
+    reported, or a CAD quote on a USD row) they return None, so the row falls
+    back to its stored values instead of mixing or guessing units. Rows whose
+    unit is a reading rather than a currency (PCT yield, IDX level) take the
+    live value as it is. Dimensionless values (fundamentals ratios, analyst
+    consensus and count) are never withheld.
 
     ``eps_currency`` is the reporting unit of ``eps``, recorded only where it is
     established; a missing entry means the unit is unknown.
@@ -81,12 +85,19 @@ class LiveMarketData:
         return bool(self.prices or self.fundamentals or self.eps)
 
     def unit_factor_for(self, row):
-        """Multiplier from provider unit to ``row.ccy``; None if unconvertible."""
-        return unit_factor(self.currency.get(row.ticker), row.ccy)
+        """Multiplier from provider unit to ``row.ccy``, or None to withhold.
 
-    def is_withheld(self, row):
-        """True when live amounts exist for the row but cannot be converted."""
-        return row.ticker in self.currency and self.unit_factor_for(row) is None
+        Strict for currency rows: an unknown provider currency is None, never
+        "assume the same unit", because a unitless quote could be in pence,
+        pounds or another currency entirely.
+        """
+        return live_unit_factor(self.currency.get(row.ticker), row.ccy)
+
+    def has_amounts(self, ticker):
+        """True when any currency-denominated live value exists for ``ticker``."""
+        return any(ticker in store for store in (
+            self.prices, self.moving_averages, self.d5,
+            self.max_close, self.analyst))
 
     def price_for(self, row):
         """Live price in the row's unit, or None (absent or withheld)."""
@@ -494,7 +505,7 @@ class TickerSnapshot:
 
     ticker: str
     name: str
-    currency: str
+    currency: str | None
     price: float
     bear_low: float
     cycle_high: float
@@ -564,7 +575,9 @@ def fetch_ticker(ticker, rec_map, warn=print, client=None, now=None, symbol=None
         return TickerSnapshot(
             ticker=ticker,
             name=info.get("longName") or info.get("shortName") or ticker,
-            currency=info.get("currency", "USD"),
+            # No default: an unreported currency stays unknown, so the quote
+            # is never persisted or shown as if it were USD.
+            currency=info.get("currency"),
             price=price,
             bear_low=bear_low,
             cycle_high=cycle_high,

@@ -12,6 +12,7 @@ so this sheet cannot go stale.
 from openpyxl.utils import get_column_letter
 
 from modules.calculations import RANK_DEEP, classify_zone, effective_ath, fib
+from modules.portfolio import swing_key
 from workbook.styles import (
     AL1_BG,
     AL2_BG,
@@ -106,7 +107,7 @@ def render(ws, macro_swing_rows, ctx):
     for swing in macro_swing_rows:
         # Resolved in the swing's own unit, independent of row order
         # (portfolio.resolve_swing_quote).
-        current, max_close = ctx.swing_quotes.get(swing.ticker, (None, None))
+        current, max_close = ctx.swing_quotes.get(swing_key(swing), (None, None))
         macro_hi = effective_ath(swing.macro_hi, max_close)
         zone = classify_zone(current, swing.macro_lo, macro_hi)
         bg, fc, _short, _plain = ZONE_STYLES[zone.rank]

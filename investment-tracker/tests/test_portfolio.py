@@ -55,6 +55,7 @@ class LiveOverlayTest(unittest.TestCase):
             "conviction": "high",
         })
         live = LiveMarketData(
+            currency={"ABC": "USD"},
             prices={"ABC": 42.0},
             fundamentals={"ABC": (12.0, 8.0, 0.4, 0.15)},
         )
@@ -74,6 +75,7 @@ class LiveOverlayTest(unittest.TestCase):
             "ttm_pe": None, "de": 0.9,
         })
         live = LiveMarketData(
+            currency={"XYZ": "USD"},
             prices={"XYZ": 11.0},
             fundamentals={"XYZ": (None, None, None, None)},
         )
@@ -188,7 +190,7 @@ class AddedRowRefreshTest(unittest.TestCase):
             ])
             cfg = make_config(tmp, live_refresh=False)
 
-            rows = portfolio.build(cfg, LiveMarketData(), {}, warn=lambda *_: None)
+            rows, _stored = portfolio.build(cfg, LiveMarketData(), {}, warn=lambda *_: None)
 
             self.assertEqual(
                 [row.asset for row in rows],

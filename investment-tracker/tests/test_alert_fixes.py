@@ -76,7 +76,7 @@ class EffectiveAthTest(unittest.TestCase):
 
     def test_superseded_ath_lifts_levels_and_is_reported(self):
         row = stock(ticker="AAPL", current=342.56, macro_lo=123.88, macro_hi=288.35)
-        live = LiveMarketData(max_close={"AAPL": 345.0})
+        live = LiveMarketData(max_close={"AAPL": 345.0}, currency={"AAPL": "USD"})
         messages = []
         rows, updates = portfolio.apply_effective_ath([row], live, warn=messages.append)
         self.assertEqual(rows[0].macro_hi, 345.0)
@@ -87,7 +87,7 @@ class EffectiveAthTest(unittest.TestCase):
 
     def test_implausible_jump_is_ignored(self):
         row = stock(ticker="X", macro_hi=45.88)
-        live = LiveMarketData(max_close={"X": 4588.0})
+        live = LiveMarketData(max_close={"X": 4588.0}, currency={"X": "USD"})
         rows, updates = portfolio.apply_effective_ath([row], live, warn=lambda *_: None)
         self.assertEqual(rows[0].macro_hi, 45.88)
         self.assertEqual(updates, {})
@@ -680,7 +680,7 @@ class SwingQuoteTest(unittest.TestCase):
                            SheetContext(run_date="d", data_source="s", live=live,
                                         swing_quotes=quotes))
         cells = [r for r in ws.iter_rows() if r[0].value == "AB.L"]
-        return quotes["AB.L"][0], cells[0][5].value, warnings
+        return quotes[("AB.L", "GBP")][0], cells[0][5].value, warnings
 
     def _both_orders(self, rows, live=None):
         first = self._status(rows, live)
@@ -752,6 +752,113 @@ class AthHighlightTest(unittest.TestCase):
                  for r in ws.iter_rows() if r[0].value in ("Lifted", "Kept")}
         self.assertEqual(fills["Lifted"], CHECK_BG)
         self.assertNotEqual(fills["Kept"], CHECK_BG)
+
+
+class UnknownCurrencyTest(unittest.TestCase):
+    """A quote with no reported currency reaches neither workbook nor JSON."""
+
+    swing = MacroSwingRow(ticker="AB.L", ccy="GBP", macro_lo=6.0, macro_hi=18.0)
+
+    @staticmethod
+    def _row(**fields):
+        base = dict(asset="AB plc", ticker="AB.L", ccy="GBP", current=12.0,
+                    macro_lo=6.0, macro_hi=18.0, rtype="STOCK", notes="")
+        base.update(fields)
+        return base
+
+    def _build(self, tmp, rows, live, fetch=None, add=()):
+        import json
+        from pathlib import Path
+        from types import SimpleNamespace
+
+        path = Path(tmp) / "portfolio_rows.json"
+        path.write_text(json.dumps(rows))
+        cfg = SimpleNamespace(portfolio_rows_path=path, remove_items=(),
+                              add_tickers=tuple(add), live_refresh=True)
+        warnings = []
+        built, stored = portfolio.build(cfg, live, {}, warn=warnings.append,
+                                        fetch=fetch or (lambda *a, **k: None))
+        return built, stored, json.loads(path.read_text()), warnings
+
+    def _render(self, rows, stored, live):
+        from openpyxl import Workbook
+        from workbook import alert_levels, methodology
+
+        quotes = portfolio.resolve_swing_quotes([self.swing], stored, live,
+                                                warn=lambda *_: None)
+        ctx = SheetContext(run_date="d", data_source="s", live=live,
+                           swing_quotes=quotes)
+        alert, fib_ws = Workbook().active, Workbook().active
+        alert_levels.render(alert, rows, ctx)
+        methodology.render(fib_ws, [self.swing], ctx)
+        alert_cur = [r[3].value for r in alert.iter_rows() if r[1].value == "AB.L"]
+        fib_cur = [r[3].value for r in fib_ws.iter_rows() if r[0].value == "AB.L"]
+        return quotes, alert_cur, fib_cur
+
+    def test_unitless_live_price_falls_back_to_the_stored_price(self):
+        import tempfile
+
+        live = LiveMarketData(prices={"AB.L": 1200.0})          # no currency
+        with tempfile.TemporaryDirectory() as tmp:
+            rows, stored, _saved, warnings = self._build(tmp, [self._row()], live)
+        self.assertEqual(rows[0].current, 12.0)
+        quotes = portfolio.resolve_swing_quotes([self.swing], stored, live)
+        self.assertEqual(quotes[("AB.L", "GBP")][0], 12.0)
+        self.assertTrue(any("no currency" in w for w in warnings))
+
+    def test_unitless_refresh_keeps_12_in_json_alert_levels_and_methodology(self):
+        import tempfile
+
+        snap = TickerSnapshot("AB.L", "AB plc", None, 15.0, 6.0, 18.0,
+                              (14.0, 13.0, 12.0, 11.0, 10.0), (11.1, 9.9, 0.5, 0.2),
+                              ("Buy", 7, 20.0))
+        live = LiveMarketData()
+        with tempfile.TemporaryDirectory() as tmp:
+            rows, stored, saved, _w = self._build(
+                tmp, [self._row(source="added", current=12.0)], live,
+                fetch=lambda *a, **k: snap)
+        self.assertEqual(saved[0]["current"], 12.0)
+        self.assertEqual(saved[0]["ttm_pe"], 11.1)     # ratios still refresh
+        _quotes, alert_cur, fib_cur = self._render(rows, stored, live)
+        self.assertEqual(alert_cur, [12.0])
+        self.assertEqual(fib_cur, ["12.00"])
+
+    def test_new_ticker_without_currency_is_not_persisted(self):
+        import tempfile
+
+        snap = TickerSnapshot("NEW", "New Co", None, 15.0, 6.0, 18.0,
+                              (14.0, 13.0, 12.0, 11.0, 10.0), (11.1, 9.9, 0.5, 0.2),
+                              ("Buy", 7, 20.0))
+        with tempfile.TemporaryDirectory() as tmp:
+            rows, _stored, saved, warnings = self._build(
+                tmp, [self._row()], LiveMarketData(),
+                fetch=lambda *a, **k: snap, add=("NEW",))
+        self.assertEqual([r["ticker"] for r in saved], ["AB.L"])
+        self.assertNotIn("NEW", [r.ticker for r in rows])
+        self.assertTrue(any("not persisted" in w for w in warnings))
+
+    def test_readings_accept_a_unitless_live_value(self):
+        live = LiveMarketData(prices={"TNX": 4.9})
+        self.assertEqual(live.price_for(stock(ticker="TNX", ccy="PCT")), 4.9)
+        self.assertIsNone(live.price_for(stock(ticker="TNX", ccy="USD")))
+
+    def test_two_anchors_on_one_ticker_keep_their_own_units(self):
+        from openpyxl import Workbook
+        from workbook import methodology
+
+        pounds = MacroSwingRow(ticker="AB.L", ccy="GBP", macro_lo=6.0, macro_hi=18.0)
+        pence = MacroSwingRow(ticker="AB.L", ccy="GBp", macro_lo=600.0, macro_hi=1800.0)
+        live = LiveMarketData(prices={"AB.L": 12.0}, currency={"AB.L": "GBP"})
+        quotes = portfolio.resolve_swing_quotes([pounds, pence], [], live)
+        self.assertEqual(quotes[("AB.L", "GBP")][0], 12.0)
+        self.assertEqual(quotes[("AB.L", "GBp")][0], 1200.0)
+
+        ws = Workbook().active
+        methodology.render(ws, [pounds, pence],
+                           SheetContext(run_date="d", data_source="s", live=live,
+                                        swing_quotes=quotes))
+        shown = [r[3].value for r in ws.iter_rows() if r[0].value == "AB.L"]
+        self.assertEqual(shown, ["12.00", "1,200.00"])
 
 
 if __name__ == "__main__":
