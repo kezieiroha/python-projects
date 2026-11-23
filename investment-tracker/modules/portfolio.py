@@ -289,12 +289,13 @@ def resolve_swing_quote(swing, rows, live, warn=print):
 
 
 def swing_key(swing):
-    """Key for a resolved swing quote: ticker and unit.
+    """Key for a resolved swing quote: ticker, unit and low date.
 
     Two anchors for one ticker in different units (GBP and GBp) need their own
-    converted quotes, so the ticker alone is not enough.
+    converted quotes, and two anchors in the same unit with different low
+    dates need their own cycle highs, so all three identify the quote.
     """
-    return (swing.ticker, swing.ccy)
+    return (swing.ticker, swing.ccy, swing.macro_lo_date)
 
 
 def resolve_swing_quotes(swings, stored_rows, live, warn=print):

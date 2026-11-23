@@ -51,6 +51,7 @@
     "ticker": "PLTR",
     "ccy": "USD",
     "macro_lo": 5.92,
+    "macro_lo_date": "2022-12-27",
     "macro_hi": 207.52
   },
   {
@@ -69,12 +70,14 @@
     "ticker": "PANW",
     "ccy": "USD",
     "macro_lo": 68.37,
+    "macro_lo_date": "2022-12-28",
     "macro_hi": 223.61
   },
   {
     "ticker": "RKLB",
     "ccy": "USD",
     "macro_lo": 3.48,
+    "macro_lo_date": "2022-12-28",
     "macro_hi": 99.58
   },
   {
@@ -87,6 +90,7 @@
     "ticker": "AMZN",
     "ccy": "USD",
     "macro_lo": 81.69,
+    "macro_lo_date": "2022-12-28",
     "macro_hi": 258.6
   },
   {

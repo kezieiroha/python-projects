@@ -409,6 +409,7 @@
     "manual": null
   },
   {
+    "macro_lo_date": "2022-10-13",
     "asset": "Global X Data Centre REITs",
     "ticker": "VPNG.L",
     "ccy": "GBP",
@@ -469,6 +470,7 @@
     "manual": null
   },
   {
+    "macro_lo_date": "2022-12-27",
     "asset": "Palantir",
     "ticker": "PLTR",
     "ccy": "USD",
@@ -529,6 +531,7 @@
     "manual": null
   },
   {
+    "macro_lo_date": "2022-12-28",
     "asset": "Palo Alto Networks",
     "ticker": "PANW",
     "ccy": "USD",
@@ -559,6 +562,7 @@
     "manual": null
   },
   {
+    "macro_lo_date": "2022-12-28",
     "asset": "Rocket Lab",
     "ticker": "RKLB",
     "ccy": "USD",
@@ -574,6 +578,7 @@
     "manual": null
   },
   {
+    "macro_lo_date": "2025-04-07",
     "asset": "Intuitive Machines",
     "ticker": "LUNR",
     "ccy": "USD",
@@ -679,6 +684,7 @@
     "manual": null
   },
   {
+    "macro_lo_date": "2022-12-28",
     "asset": "Amazon.com",
     "ticker": "AMZN",
     "ccy": "USD",

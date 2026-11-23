@@ -173,6 +173,29 @@ class DatedCycleHighTest(unittest.TestCase):
         shown = [r[2].value for r in ws.iter_rows() if r[0].value == "LUNR"]
         self.assertEqual(shown, ["46.75"])
 
+    def test_same_ticker_and_unit_with_different_low_dates_resolve_apart(self):
+        """The quote key carries the low date, so a 2022-09-01 anchor (cycle
+        high 81.99) and a 2025-04-07 anchor (46.75) on one ticker and unit do
+        not overwrite each other on the methodology sheet."""
+        from openpyxl import Workbook
+        from workbook import methodology
+
+        early = MacroSwingRow(ticker="LUNR", ccy="USD", macro_lo=6.135,
+                              macro_lo_date="2022-09-01", macro_hi=23.315)
+        late = MacroSwingRow(ticker="LUNR", ccy="USD", macro_lo=6.135,
+                             macro_lo_date="2025-04-07", macro_hi=23.315)
+        live = self._live()
+        quotes = portfolio.resolve_swing_quotes([early, late], [], live)
+        self.assertEqual(len(quotes), 2)
+        self.assertEqual(quotes[portfolio.swing_key(early)][1], 81.99)
+        self.assertEqual(quotes[portfolio.swing_key(late)][1], 46.75)
+
+        ws = Workbook().active
+        methodology.render(ws, [early, late], SheetContext(
+            run_date="d", data_source="s", live=live, swing_quotes=quotes))
+        shown = [r[2].value for r in ws.iter_rows() if r[0].value == "LUNR"]
+        self.assertEqual(shown, ["81.99", "46.75"])
+
     def test_add_anchors_and_persisted_low_date(self):
         """--add dates the low, takes the High from that date on, and the
         new row persists the date so later runs use the same rule."""
@@ -806,7 +829,7 @@ class SwingQuoteTest(unittest.TestCase):
                            SheetContext(run_date="d", data_source="s", live=live,
                                         swing_quotes=quotes))
         cells = [r for r in ws.iter_rows() if r[0].value == "AB.L"]
-        return quotes[("AB.L", "GBP")][0], cells[0][5].value, warnings
+        return quotes[("AB.L", "GBP", None)][0], cells[0][5].value, warnings
 
     def _both_orders(self, rows, live=None):
         first = self._status(rows, live)
@@ -935,7 +958,7 @@ class UnknownCurrencyTest(unittest.TestCase):
             rows, stored, _saved, warnings = self._build(tmp, [self._row()], live)
         self.assertEqual(rows[0].current, 12.0)
         quotes = portfolio.resolve_swing_quotes([self.swing], stored, live)
-        self.assertEqual(quotes[("AB.L", "GBP")][0], 12.0)
+        self.assertEqual(quotes[("AB.L", "GBP", None)][0], 12.0)
         self.assertTrue(any("no currency" in w for w in warnings))
 
     def test_unitless_refresh_keeps_12_in_json_alert_levels_and_methodology(self):
@@ -982,8 +1005,8 @@ class UnknownCurrencyTest(unittest.TestCase):
         pence = MacroSwingRow(ticker="AB.L", ccy="GBp", macro_lo=600.0, macro_hi=1800.0)
         live = LiveMarketData(prices={"AB.L": 12.0}, currency={"AB.L": "GBP"})
         quotes = portfolio.resolve_swing_quotes([pounds, pence], [], live)
-        self.assertEqual(quotes[("AB.L", "GBP")][0], 12.0)
-        self.assertEqual(quotes[("AB.L", "GBp")][0], 1200.0)
+        self.assertEqual(quotes[("AB.L", "GBP", None)][0], 12.0)
+        self.assertEqual(quotes[("AB.L", "GBp", None)][0], 1200.0)
 
         ws = Workbook().active
         methodology.render(ws, [pounds, pence],
