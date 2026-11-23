@@ -861,5 +861,81 @@ class UnknownCurrencyTest(unittest.TestCase):
         self.assertEqual(shown, ["12.00", "1,200.00"])
 
 
+class ForwardEpsUnitTest(unittest.TestCase):
+    """Forward EPS is derived from the row's price, so it is shown in the
+    row's unit, never with a hard-coded dollar sign."""
+
+    def _fwd_eps_cell(self, row):
+        from openpyxl import Workbook
+        from workbook import alert_levels
+        ws = Workbook().active
+        alert_levels.render(ws, [row], SheetContext(run_date="d", data_source="s"))
+        cells = [r for r in ws.iter_rows() if r[1].value == row.ticker]
+        self.assertEqual(len(cells), 1)
+        return cells[0][16].value     # column Q
+
+    def test_shell_pence_row_shows_pence(self):
+        """The 23 Nov workbook showed ~$445.88 for a 3,567p price at 8x."""
+        shell = stock(asset="Shell PLC", ticker="SHEL.L", ccy="GBp",
+                      current=3567.0, macro_lo=1619.12, macro_hi=4037.57,
+                      ttm_pe=8.0, fwd_pe=8.0)
+        self.assertEqual(self._fwd_eps_cell(shell), "~445.88p")
+
+    def test_usd_row_is_unchanged(self):
+        self.assertEqual(self._fwd_eps_cell(stock(current=150.0, fwd_pe=12.0)),
+                         "~$12.50")
+
+
+class EarningsQualityTest(unittest.TestCase):
+    """Positive trailing net income with a verified trailing operating loss
+    is a DATA CHECK on both sheets; the zone signal is kept."""
+
+    OPERATING = -1_270_456_000.0   # IONQ, four reported quarters to Sep 2026
+
+    def _ionq(self):
+        return stock(asset="IonQ", ticker="IONQ", current=23.36, macro_lo=3.25,
+                     macro_hi=82.09, ttm_pe=14.0, margin=0.6709, de=0.03)
+
+    def test_rule_routes_to_data_check_not_falling_knife(self):
+        row = self._ionq()
+        check = assess_fundamentals(row, 1.73, NO_MACRO, self.OPERATING)
+        self.assertEqual(check.data_check[0], "NET PROFIT WITH TTM OPERATING LOSS")
+        self.assertEqual(check.suspect, frozenset({"ttm_pe", "margin"}))
+        self.assertFalse(check.is_red)
+        self.assertEqual(classify_row(row).rank, RANK_AL3)
+        self.assertEqual(summary_group(RANK_AL3, check), GROUP_CHECK)
+
+    def test_rule_needs_both_conditions(self):
+        row = self._ionq()
+        self.assertEqual(assess_fundamentals(row, 1.73, NO_MACRO), FundamentalsCheck())
+        self.assertEqual(assess_fundamentals(row, 1.73, NO_MACRO, 5.0e8),
+                         FundamentalsCheck())
+        loss = stock(margin=-0.3)
+        check = assess_fundamentals(loss, -1.0, NO_MACRO, self.OPERATING)
+        self.assertEqual(check.data_check, ())
+        self.assertIn("LOSS-MAKING", check.red)
+
+    def test_reason_is_visible_on_both_sheets(self):
+        from openpyxl import Workbook
+        from workbook import alert_levels, summary
+        live = LiveMarketData(operating_income={"IONQ": self.OPERATING})
+        ctx = SheetContext(run_date="d", data_source="s", live=live)
+        reason = "NET PROFIT WITH TTM OPERATING LOSS"
+
+        ws = Workbook().active
+        alert_levels.render(ws, [self._ionq()], ctx)
+        cells = [r for r in ws.iter_rows() if r[1].value == "IONQ"][0]
+        self.assertIn("AL3 HIT", cells[12].value)
+        self.assertIn(f"DATA CHECK: {reason}", cells[12].value)
+        self.assertEqual(cells[13].value, "DATA CHECK")     # N: TTM P/E
+        self.assertEqual(cells[18].value, "DATA CHECK")     # S: net margin
+
+        ws = Workbook().active
+        summary.render(ws, [self._ionq()], ctx)
+        cells = [r for r in ws.iter_rows() if r[1].value == "IONQ"][0]
+        self.assertIn("AL3 HIT", cells[4].value)
+        self.assertIn(reason, cells[4].value)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -38,9 +38,12 @@ def _grouped(symbols, values, freq):
 class StubClient:
     """Minimal stand-in for the yfinance module."""
 
-    def __init__(self, symbols, info_by_symbol=None, fail_info=(), daily_len=400):
+    def __init__(self, symbols, info_by_symbol=None, fail_info=(), daily_len=400,
+                 quarterly_by_symbol=None):
         self.symbols = symbols
         self.info_by_symbol = info_by_symbol or {}
+        self.quarterly_by_symbol = quarterly_by_symbol or {}
+        self.quarterly_calls = []
         self.fail_info = set(fail_info)
         self.daily = [float(i) for i in range(1, daily_len + 1)]
         self.monthly = [float(i) for i in range(1, 61)]
@@ -64,6 +67,11 @@ class StubClient:
                 if symbol in outer.fail_info:
                     raise RuntimeError(f"provider blew up for {symbol}")
                 return outer.info_by_symbol.get(symbol, {})
+
+            @property
+            def quarterly_income_stmt(self):
+                outer.quarterly_calls.append(symbol)
+                return outer.quarterly_by_symbol.get(symbol, pd.DataFrame())
 
             def history(self, **_kwargs):
                 idx = pd.date_range("2022-09-01", periods=200, freq="D")
@@ -136,6 +144,24 @@ class FetchBatchTest(unittest.TestCase):
         live = fetch_batch([], {}, REC_MAP, warn=lambda *_: None, client=StubClient([]))
         self.assertFalse(live.has_row_overlay())
 
+    def test_operating_loss_recorded_only_when_prefilter_fires(self):
+        """The quarterly statement is requested only for a positive net margin
+        with a negative operating margin, and recorded once reconciled."""
+        dates = pd.to_datetime(["2026-09-30", "2026-06-30", "2026-03-31",
+                                "2025-12-31"])
+        quarterly = pd.DataFrame([[-433.0, -337.0, -271.5, -228.5]],
+                                 index=["Operating Income"], columns=dates)
+        client = StubClient(
+            ["IONQ", "GOOGL"],
+            {"IONQ": {"profitMargins": 0.67, "operatingMargins": -3.06},
+             "GOOGL": {"profitMargins": 0.50, "operatingMargins": 0.33}},
+            quarterly_by_symbol={"IONQ": quarterly, "GOOGL": quarterly},
+        )
+        live = fetch_batch(["IONQ", "GOOGL"], {}, REC_MAP,
+                           warn=lambda *_: None, client=client)
+        self.assertEqual(live.operating_income, {"IONQ": -1270.0})
+        self.assertEqual(client.quarterly_calls, ["IONQ"])
+
 
 class FetchTickerTest(unittest.TestCase):
     def test_snapshot_carries_name_currency_anchors_and_mas(self):
@@ -152,6 +178,19 @@ class FetchTickerTest(unittest.TestCase):
         self.assertEqual((snap.bear_low, snap.cycle_high), (50.0, 200.0))
         self.assertEqual(len(snap.moving_averages), 5)
         self.assertEqual(snap.analyst[0], "Strong Buy")
+
+    def test_add_path_applies_the_same_operating_check(self):
+        dates = pd.to_datetime(["2026-09-30", "2026-06-30", "2026-03-31",
+                                "2025-12-31"])
+        quarterly = pd.DataFrame([[-1.0, -1.0, -1.0, -1.0]],
+                                 index=["Operating Income"], columns=dates)
+        client = StubClient(
+            ["NEW"], {"NEW": {"currency": "USD", "profitMargins": 0.2,
+                              "operatingMargins": -0.1}},
+            quarterly_by_symbol={"NEW": quarterly},
+        )
+        snap = fetch_ticker("NEW", REC_MAP, warn=lambda *_: None, client=client)
+        self.assertEqual(snap.operating_income, -4.0)
 
     def test_ticker_symbol_used_when_provider_has_no_name(self):
         client = StubClient(["ZZZ"], {"ZZZ": {}})

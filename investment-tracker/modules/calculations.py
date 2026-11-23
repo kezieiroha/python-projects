@@ -405,10 +405,19 @@ def is_gate_exempt(row, macro_tickers):
     )
 
 
-def assess_fundamentals(row, eps, macro_tickers):
+def assess_fundamentals(row, eps, macro_tickers, operating_income=None):
     """Apply the data-quality checks, then the red-flag rules, to one row.
 
+    ``operating_income`` is the verified trailing operating income: the sum of
+    the latest four reported quarters (``market_data.trailing_operating_income``),
+    or None when it was not checked or could not be reconciled.
+
     DATA CHECK rules (value looks implausible, verify before trusting):
+        Positive trailing net income (net margin or TTM EPS above 0) with a
+            verified trailing operating loss: the profit comes from below the
+            operating line (a warrant or investment gain, for example), so the
+            TTM P/E and net margin are both suspect. Listed first, so it is
+            the reason the Daily Summary shows.
         Fwd P/E below 5x
         Fwd P/E below 0.6x TTM P/E (implies more than 65% one-year EPS growth)
         Net margin above 90%
@@ -428,6 +437,11 @@ def assess_fundamentals(row, eps, macro_tickers):
     de, margin, ttm_pe, fwd_pe = row.de, row.margin, row.ttm_pe, row.fwd_pe
     checks, suspect = [], set()
 
+    net_positive = (margin is not None and margin > 0) or (eps is not None and eps > 0)
+    if operating_income is not None and operating_income < 0 and net_positive:
+        checks.append("NET PROFIT WITH TTM OPERATING LOSS")
+        suspect.update(("ttm_pe", "margin"))
+
     if fwd_pe is not None and fwd_pe < 5:
         checks.append(f"FWD P/E {fwd_pe:.0f}x BELOW 5x")
         suspect.add("fwd_pe")
@@ -438,7 +452,9 @@ def assess_fundamentals(row, eps, macro_tickers):
             and "fwd_pe" not in suspect:
         checks.append(f"FWD P/E {fwd_pe:.0f}x WITH NEGATIVE EPS")
         suspect.add("fwd_pe")
-    if margin is not None and margin > 0.90:
+    if "margin" in suspect:
+        pass    # already held back by the operating-loss check above
+    elif margin is not None and margin > 0.90:
         checks.append(f"NET MARGIN {margin:.0%} ABOVE 90%")
         suspect.add("margin")
     elif margin and eps and (margin < 0) != (eps < 0):
@@ -456,7 +472,7 @@ def assess_fundamentals(row, eps, macro_tickers):
             red.append("LOSS-MAKING")
         elif margin < 0.05:
             amber.append(f"THIN MARGIN {margin:.0%}")
-    if ttm_pe is not None and ttm_pe > 100:
+    if ttm_pe is not None and ttm_pe > 100 and "ttm_pe" not in suspect:
         red.append(f"HIGH TTM P/E {ttm_pe:.0f}x")
     if fwd_pe is not None and fwd_pe > 80 and "fwd_pe" not in suspect:
         red.append(f"FWD P/E STRETCHED {fwd_pe:.0f}x")

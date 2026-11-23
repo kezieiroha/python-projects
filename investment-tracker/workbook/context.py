@@ -128,9 +128,14 @@ class SheetContext:
         return row.ccy
 
     def fundamentals_for(self, row):
-        """Returns the FundamentalsCheck for a row, identical on every sheet."""
+        """Returns the FundamentalsCheck for a row, identical on every sheet.
+
+        Includes the verified trailing operating income where the live refresh
+        recorded one, so the earnings-quality check sees it on both sheets.
+        """
         eps, _verified = self.resolved_eps(row)
-        return assess_fundamentals(row, eps, self.macro_tickers)
+        return assess_fundamentals(row, eps, self.macro_tickers,
+                                   self.live.operating_income.get(row.ticker))
 
     def is_intraday(self, row):
         """True when the row's Current price was taken during an open session."""

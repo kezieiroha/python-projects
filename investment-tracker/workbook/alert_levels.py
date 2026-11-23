@@ -346,7 +346,9 @@ def _write_valuation(ws, row, record, ctx, check):
     current, ttm_pe, fwd_pe = record.current, record.ttm_pe, record.fwd_pe
 
     # N: TTM P/E
-    if ttm_pe is not None:
+    if "ttm_pe" in check.suspect:
+        _data_check_cell(ws, row, 14)
+    elif ttm_pe is not None:
         pe_bg, pe_fc = _ratio_style(ttm_pe, 100, 50, 15)
         _styled(ws, row, 14, f"{ttm_pe:.0f}x", bg=pe_bg, color=pe_fc,
                 bold=ttm_pe > 100)
@@ -380,12 +382,15 @@ def _write_valuation(ws, row, record, ctx, check):
     else:
         _styled(ws, row, 16, na, bg=FUND_BG, color="888888")
 
-    # Q: Fwd EPS is always derived; there is no independent forward source.
+    # Q: Fwd EPS is always derived (price / Fwd P/E); there is no independent
+    # forward source. Derived from the row's price, it is in the row's unit,
+    # so it uses the same formatter as TTM EPS: "~445.88p" on a pence row,
+    # "~$13.39" on a USD row, never a hard-coded "$".
     fwd_eps = round(current / fwd_pe, 2) if (fwd_pe and current) else None
     if "fwd_pe" in check.suspect:
         _data_check_cell(ws, row, 17)
     elif fwd_eps is not None:
-        _styled(ws, row, 17, f"{'-' if fwd_eps < 0 else ''}~${abs(fwd_eps):.2f}",
+        _styled(ws, row, 17, eps_text(fwd_eps, record.ccy, verified=False),
                 bg="FFCDD2" if fwd_eps < 0 else FUND_BG,
                 color=RED_C if fwd_eps < 0 else "555555", italic=True)
     else:

@@ -344,6 +344,8 @@ def register_snapshot(live, snapshot):
         live.d5[snapshot.ticker] = snapshot.d5
     if snapshot.max_close is not None:
         live.max_close[snapshot.ticker] = snapshot.max_close
+    if snapshot.operating_income is not None:
+        live.operating_income[snapshot.ticker] = snapshot.operating_income
 
 
 def refreshed_price(row, snapshot):

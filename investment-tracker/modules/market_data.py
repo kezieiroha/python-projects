@@ -68,6 +68,11 @@ class LiveMarketData:
 
     ``eps_currency`` is the reporting unit of ``eps``, recorded only where it is
     established; a missing entry means the unit is unknown.
+
+    ``operating_income`` holds a verified trailing operating income (four
+    reported quarters summed) only for tickers where the provider showed
+    positive net income alongside an operating loss. Only its sign is used,
+    so it is not unit-converted.
     """
 
     prices: dict = field(default_factory=dict)
@@ -79,6 +84,7 @@ class LiveMarketData:
     currency: dict = field(default_factory=dict)
     d5: dict = field(default_factory=dict)
     max_close: dict = field(default_factory=dict)
+    operating_income: dict = field(default_factory=dict)
 
     def has_row_overlay(self):
         """True when there is anything worth overlaying onto portfolio rows."""
@@ -333,18 +339,57 @@ def series_metrics(daily, monthly, symbol, now_utc):
 def fib_anchors(history):
     """Derive (bear_low, cycle_high) from a long daily OHLC history.
 
-    Both anchors come from intraday extremes so they are the same kind of price.
-    Falls back to the full history when the ticker post-dates the 2022 window.
+    The low is dated first: the lowest intraday Low in the 2022 bear window, or
+    in the full history when the ticker post-dates that window. The high is
+    then the highest intraday High on or after that date, so a peak that
+    predates the low (a 2021 high, for example) can never become the cycle
+    high. Both anchors are intraday extremes, so they share a price basis.
     """
-    highs = history["High"].dropna()
-    cycle_high = round(float(highs.max()), 2) if len(highs) else None
-
     bear_window = history.loc[BEAR_WINDOW_START:BEAR_WINDOW_END]
     source = bear_window if not bear_window.empty else history
     lows = source["Low"].dropna()
-    bear_low = round(float(lows.min()), 2) if len(lows) else None
+    if not len(lows):
+        return None, None
+    bear_low = round(float(lows.min()), 2)
+
+    highs = history.loc[lows.idxmin():, "High"].dropna()
+    cycle_high = round(float(highs.max()), 2) if len(highs) else None
 
     return bear_low, cycle_high
+
+
+#: Reported quarters summed into a trailing operating income figure.
+TTM_QUARTERS = 4
+
+
+def shows_profit_with_operating_loss(info):
+    """True when provider info reports a positive net margin but a negative
+    operating margin.
+
+    A cheap pre-filter from the ``.info`` payload already fetched, so the
+    quarterly statement (one more provider call) is only requested for the
+    few tickers where it matters.
+    """
+    net = to_float(info.get("profitMargins"))
+    operating = to_float(info.get("operatingMargins"))
+    return net is not None and net > 0 and operating is not None and operating < 0
+
+
+def trailing_operating_income(quarterly):
+    """Sum of the latest four reported quarterly Operating Income values.
+
+    ``quarterly`` is an income statement with line items as rows and
+    quarter-end dates as columns (yfinance ``quarterly_income_stmt``). Returns
+    None unless all four latest quarters carry a value, so a partial history is
+    never read as a trailing total.
+    """
+    if quarterly is None or "Operating Income" not in getattr(quarterly, "index", ()):
+        return None
+    latest = quarterly.loc["Operating Income"].sort_index(ascending=False)
+    values = [to_float(v) for v in latest.iloc[:TTM_QUARTERS]]
+    if len(values) < TTM_QUARTERS or any(v is None or v != v for v in values):
+        return None
+    return sum(values)
 
 
 # -----------------------------------------------------------------------------
@@ -459,10 +504,19 @@ def fetch_batch(tickers, aliases, rec_map, warn=print, client=None, now=None):
         )
         for ticker in tickers:
             try:
-                info = yf.Ticker(symbol_for(ticker)).info
+                handle = yf.Ticker(symbol_for(ticker))
+                info = handle.info
                 live.fundamentals[ticker] = fundamentals_from_info(info)
                 if info.get("currency"):
                     live.currency[ticker] = info["currency"]
+
+                # Earnings quality: positive net income with an operating loss
+                # is confirmed against four reported quarters before it is
+                # recorded (calculations.assess_fundamentals uses it).
+                if shows_profit_with_operating_loss(info):
+                    operating = trailing_operating_income(handle.quarterly_income_stmt)
+                    if operating is not None:
+                        live.operating_income[ticker] = operating
 
                 # yfinance trailingEps is useful but is not Alpha Vantage
                 # independent verification, so provenance is recorded as False.
@@ -514,6 +568,7 @@ class TickerSnapshot:
     analyst: tuple
     d5: D5View | None = None
     max_close: float | None = None
+    operating_income: float | None = None
 
 
 def fetch_ticker(ticker, rec_map, warn=print, client=None, now=None, symbol=None):
@@ -572,6 +627,10 @@ def fetch_ticker(ticker, rec_map, warn=print, client=None, now=None, symbol=None
             return None
 
         mas, d5, max_close = series_metrics(daily, monthly, symbol, now)
+        # Same earnings-quality pre-filter and reconciliation as fetch_batch,
+        # so --add rows are held to the same rule.
+        operating = (trailing_operating_income(handle.quarterly_income_stmt)
+                     if shows_profit_with_operating_loss(info) else None)
         return TickerSnapshot(
             ticker=ticker,
             name=info.get("longName") or info.get("shortName") or ticker,
@@ -586,6 +645,7 @@ def fetch_ticker(ticker, rec_map, warn=print, client=None, now=None, symbol=None
             analyst=analyst_from_info(info, rec_map, default_consensus="Hold"),
             d5=d5,
             max_close=max_close,
+            operating_income=operating,
         )
     except Exception as ex:
         warn(f"[--add {ticker}] Failed: {ex}")

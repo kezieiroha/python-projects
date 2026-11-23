@@ -9,7 +9,9 @@ from modules.market_data import (
     moving_averages,
     net_margin,
     positive_pe,
+    shows_profit_with_operating_loss,
     to_float,
+    trailing_operating_income,
 )
 
 
@@ -69,14 +71,49 @@ class SharedComputationTest(unittest.TestCase):
             self.assertIsNotNone(value)
         self.assertAlmostEqual(d200, 300.5)
 
-    def test_fib_anchors_use_intraday_extremes(self):
+    def test_fib_anchors_ignore_a_larger_high_before_the_low(self):
+        """The 30.0 peak precedes the dated 3.0 low, so it is not eligible;
+        the cycle high is the highest intraday High from the low onward."""
         import pandas as pd
         idx = pd.date_range("2022-09-01", periods=4, freq="D")
         history = pd.DataFrame(
             {"High": [10.0, 30.0, 20.0, 25.0], "Low": [5.0, 8.0, 3.0, 9.0]},
             index=idx,
         )
-        self.assertEqual(fib_anchors(history), (3.0, 30.0))
+        self.assertEqual(fib_anchors(history), (3.0, 25.0))
+
+    def test_fib_anchors_pre_window_peak_like_path(self):
+        """A 2021 peak (PATH-style) before a 2022 low is excluded."""
+        import pandas as pd
+        idx = pd.to_datetime(["2021-05-28", "2022-11-04", "2024-02-12", "2026-11-20"])
+        history = pd.DataFrame(
+            {"High": [90.0, 11.0, 27.87, 12.0], "Low": [70.0, 10.4, 25.0, 11.5]},
+            index=idx,
+        )
+        self.assertEqual(fib_anchors(history), (10.4, 27.87))
+
+    def test_trailing_operating_income_needs_four_quarters(self):
+        import pandas as pd
+        dates = pd.to_datetime(["2026-09-30", "2026-06-30", "2026-03-31",
+                                "2025-12-31", "2025-09-30"])
+        full = pd.DataFrame([[-4.0, -3.0, -2.0, -1.0, 99.0]],
+                            index=["Operating Income"], columns=dates)
+        self.assertEqual(trailing_operating_income(full), -10.0)
+        partial = full.iloc[:, :3]
+        self.assertIsNone(trailing_operating_income(partial))
+        gap = full.copy()
+        gap.iloc[0, 1] = float("nan")
+        self.assertIsNone(trailing_operating_income(gap))
+        self.assertIsNone(trailing_operating_income(pd.DataFrame()))
+
+    def test_profit_with_operating_loss_prefilter(self):
+        self.assertTrue(shows_profit_with_operating_loss(
+            {"profitMargins": 0.67, "operatingMargins": -3.06}))
+        self.assertFalse(shows_profit_with_operating_loss(
+            {"profitMargins": 0.50, "operatingMargins": 0.33}))
+        self.assertFalse(shows_profit_with_operating_loss(
+            {"profitMargins": -0.2, "operatingMargins": -0.3}))
+        self.assertFalse(shows_profit_with_operating_loss({"profitMargins": 0.5}))
 
     def test_alpha_vantage_targets_respect_daily_budget(self):
         targets, dropped = alpha_vantage_targets(

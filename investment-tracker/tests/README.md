@@ -22,7 +22,7 @@ python3 tests/live_smoke.py
 
 ## Test Files
 
-133 collected tests across nine modules.
+143 collected tests across nine modules.
 
 | File | Tests | Purpose |
 |---|---:|---|
@@ -30,10 +30,10 @@ python3 tests/live_smoke.py
 | `test_calculations.py` | 2 | Pure Fib, upside-to-ATH, and alert-zone classification rules. |
 | `test_cli.py` | 12 | Argument parsing, injectable run clock, `--offline` handling, exclusion of tickers from the fetch list, and the full/partial/static data-source label. |
 | `test_data_store.py` | 12 | JSON row loading/saving, required swing-anchor units, unknown-field preservation, duplicate ticker preservation, removal matching, and `PortfolioRow` identity and predicates. |
-| `test_market_data.py` | 9 | Provider data normalization for P/E, D/E, margin, and float coercion, plus the shared moving-average and Fib-anchor computation and the Alpha Vantage call budget. |
-| `test_market_orchestration.py` | 16 | The code that calls the provider, driven through injectable clients: symbol aliasing, per-ticker failure isolation, `.info` price override, EPS provenance, and Alpha Vantage rate-limit and sleep behaviour. |
+| `test_market_data.py` | 12 | Provider data normalization for P/E, D/E, margin, and float coercion, the shared moving-average computation, Fib anchors dated low-first (a larger high before the low is ignored), the four-quarter operating income reconciliation and its pre-filter, and the Alpha Vantage call budget. |
+| `test_market_orchestration.py` | 18 | The code that calls the provider, driven through injectable clients: symbol aliasing, per-ticker failure isolation, `.info` price override, EPS provenance, the operating-loss check on both the batch and `--add` paths, and Alpha Vantage rate-limit and sleep behaviour. |
 | `test_market_sources.py` | 2 | Data-driven macro/sentiment ticker classification sets and defaults. |
-| `test_alert_fixes.py` | 65 | Effective ATH and per-row ATH highlighting, unknown provider currency withheld from workbook and JSON, swing quotes keyed by ticker and unit, unit-aware static fallbacks, order-independent swing quotes, per-row pence/pounds conversion and withheld currency mismatches (including rows sharing a ticker in both orders), EPS units and the guarded P/E recompute, the EPS cell format, missing-symbol history, `--add` refresh units and aliases, up-direction manual levels, inclusive level boundaries, note price/status detection, DATA CHECK rules, single-ticker and one-symbol-batch closes, the Daily Summary quality gate, broken anchor lows, completed-session closes, the D5 EMA flag, and the Alpha Vantage P/E preference. |
+| `test_alert_fixes.py` | 70 | Forward EPS in the row's unit (Shell in pence), the earnings-quality DATA CHECK (positive net income with a verified operating loss) on both sheets, effective ATH and per-row ATH highlighting, unknown provider currency withheld from workbook and JSON, swing quotes keyed by ticker and unit, unit-aware static fallbacks, order-independent swing quotes, per-row pence/pounds conversion and withheld currency mismatches (including rows sharing a ticker in both orders), EPS units and the guarded P/E recompute, the EPS cell format, missing-symbol history, `--add` refresh units and aliases, up-direction manual levels, inclusive level boundaries, note price/status detection, DATA CHECK rules, single-ticker and one-symbol-batch closes, the Daily Summary quality gate, broken anchor lows, completed-session closes, the D5 EMA flag, and the Alpha Vantage P/E preference. |
 | `test_portfolio.py` | 11 | Unified portfolio-row assembly, `--add` refresh behavior, same-ticker preservation, and live overlays that do not rewrite anchors/notes. |
 | `live_smoke.py` | — | Not collected. Live provider check, run explicitly. |
 
