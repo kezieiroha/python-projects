@@ -206,7 +206,8 @@ def validate_manual_levels(row):
 # Anchors and units
 # =============================================================================
 
-#: Anchor-low window start. The effective ATH looks at closes from here on.
+#: Anchor-low window start: the 2022 bear window used to date a new row's
+#: low, and the start of the daily history downloaded each run.
 ANCHOR_START = "2022-09-01"
 
 #: Price-to-level ratio band treated as a pence-versus-pounds mismatch.
@@ -348,9 +349,12 @@ def units_mismatch(price, reference):
     return lo <= ratio <= hi
 
 
-def effective_ath(stored_ath, max_close):
-    """Return max(stored ATH, highest close since the anchor low)."""
-    values = [v for v in (stored_ath, max_close) if v is not None]
+def effective_ath(stored_ath, cycle_high):
+    """Return max(stored ATH, cycle high since the dated anchor low).
+
+    ``cycle_high`` is None for an undated low, so the stored ATH is kept.
+    """
+    values = [v for v in (stored_ath, cycle_high) if v is not None]
     return max(values) if values else None
 
 
@@ -396,6 +400,17 @@ def resolve_eps(row, eps_view):
     return None, False
 
 
+def shows_positive_profit(margin, eps):
+    """True on positive trailing profit evidence: net margin or TTM EPS above 0.
+
+    The single definition used by both the fetch pre-filter (which decides
+    whether to request the quarterly statement) and ``assess_fundamentals``
+    (which applies the earnings-quality rule), so a ticker the rule would
+    flag is never skipped at fetch time.
+    """
+    return (margin is not None and margin > 0) or (eps is not None and eps > 0)
+
+
 def is_gate_exempt(row, macro_tickers):
     """Funds, macro gauges, crypto and section rows are not assessed."""
     return (
@@ -437,8 +452,8 @@ def assess_fundamentals(row, eps, macro_tickers, operating_income=None):
     de, margin, ttm_pe, fwd_pe = row.de, row.margin, row.ttm_pe, row.fwd_pe
     checks, suspect = [], set()
 
-    net_positive = (margin is not None and margin > 0) or (eps is not None and eps > 0)
-    if operating_income is not None and operating_income < 0 and net_positive:
+    if (operating_income is not None and operating_income < 0
+            and shows_positive_profit(margin, eps)):
         checks.append("NET PROFIT WITH TTM OPERATING LOSS")
         suspect.update(("ttm_pe", "margin"))
 

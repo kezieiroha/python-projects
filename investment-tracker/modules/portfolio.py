@@ -38,7 +38,7 @@ from modules.data_store import (
 from modules.market_data import fetch_ticker
 from modules.models import Direction, PortfolioRow, RowType
 
-#: A highest close more than this multiple of the stored ATH is treated as a
+#: A cycle high more than this multiple of the stored ATH is treated as a
 #: probable unit or data error rather than a genuine new high. A pence/pounds
 #: error is 100x; genuine rallies past a stale ATH have reached about 3.5x
 #: (LUNR), so the limit sits well between the two.
@@ -82,7 +82,7 @@ def report_unit_conversions(rows, live, warn=print):
     A pence/pounds difference is scaled. A genuine currency difference (a CAD
     quote on a row stored as USD), or a provider that reports no currency at
     all, cannot be resolved, so that row's live price, moving averages, D5,
-    highest close and analyst target are withheld and it keeps its stored
+    cycle high and analyst target are withheld and it keeps its stored
     values. The warning names the row, both units and the stored fallback
     price. Nothing wrong is shown, so the run continues.
     """
@@ -174,12 +174,20 @@ def apply_live_overlay(rows, live):
 
 
 def apply_effective_ath(rows, live, warn=print):
-    """Lift stale stored ATHs to the highest close since the anchor low.
+    """Lift stale stored ATHs to the cycle high since the dated anchor low.
 
-    Effective ATH = max(stored ATH, highest completed close since ANCHOR_START),
-    with the highest close converted into each row's own unit. Applied in
-    memory only, so Fib levels, status and upside use it on every sheet while
-    the JSON stays as curated.
+    Effective ATH = max(stored ATH, highest completed-session intraday High on
+    or after the row's ``macro_lo_date``), converted into the row's unit
+    (``LiveMarketData.cycle_high_for``). This is the same definition
+    ``fib_anchors`` uses for ``--add`` and the Fib Methodology sheet uses for
+    swing anchors, so a peak before the low can never be promoted (LUNR's
+    February 2023 spike against an April 2025 low).
+
+    A row without a verified low date keeps its curated ATH: there is no
+    automatic promotion. When live highs are available, one line reports how
+    many such rows were skipped. Applied in memory only, so Fib levels, status
+    and upside use the effective ATH on every sheet while the JSON stays as
+    curated.
 
     Returns (rows, updates). ``updates`` maps each lifted row's identity,
     ``row.identity(index)`` with ``index`` its position in this full portfolio
@@ -189,35 +197,41 @@ def apply_effective_ath(rows, live, warn=print):
     can be updated by hand.
 
     Manual rows and up-direction rows are skipped: their levels are not derived
-    from an ATH. A row whose currency cannot be converted has no highest close
-    and keeps its stored ATH.
+    from an ATH. A row whose currency cannot be converted, or whose history
+    does not reach its low date, has no cycle high and keeps its stored ATH.
     """
     updates, reported, out = {}, set(), []
+    undated = 0
     for index, row in enumerate(rows):
         ticker = _ticker_of(row)
-        max_close = live.max_close_for(row)
-        if (row.is_section or row.is_manual or not row.has_fib_anchors
-                or row.direction != Direction.DOWN or max_close is None
-                or max_close <= row.macro_hi):
+        eligible = (not row.is_section and not row.is_manual and row.has_fib_anchors
+                    and row.direction == Direction.DOWN)
+        if eligible and not row.macro_lo_date and row.ticker in live.highs:
+            undated += 1
+        cycle_high = live.cycle_high_for(row) if eligible else None
+        if cycle_high is None or cycle_high <= row.macro_hi:
             out.append(row)
             continue
 
-        if max_close > ATH_JUMP_LIMIT * row.macro_hi:
-            warn(f"[ATH] {ticker}: highest close {max_close} is more than "
+        if cycle_high > ATH_JUMP_LIMIT * row.macro_hi:
+            warn(f"[ATH] {ticker}: cycle high {cycle_high} is more than "
                  f"{ATH_JUMP_LIMIT:g}x the stored ATH {row.macro_hi}; ignored. "
                  f"Check units.")
             out.append(row)
             continue
 
-        new_hi = effective_ath(row.macro_hi, max_close)
+        new_hi = effective_ath(row.macro_hi, cycle_high)
         if (ticker, row.ccy) not in reported:
             reported.add((ticker, row.ccy))
             warn(f"[ATH] {ticker} ({row.ccy}): stored cycle ATH {row.macro_hi} "
-                 f"superseded by highest close {new_hi}. Update macro_hi in "
-                 f"portfolio_rows.json.")
+                 f"superseded by the highest High {new_hi} since the low on "
+                 f"{row.macro_lo_date}. Update macro_hi in portfolio_rows.json.")
         lifted = row.replace(macro_hi=new_hi)
         updates[lifted.identity(index)] = (row.macro_hi, new_hi)
         out.append(lifted)
+    if undated:
+        warn(f"[ATH] {undated} row(s) have no macro_lo_date; stored cycle ATH "
+             f"kept and automatic promotion skipped until the low is dated.")
     return out, updates
 
 
@@ -233,7 +247,7 @@ def _live_in_unit(store, live, ticker, ccy):
 
 
 def resolve_swing_quote(swing, rows, live, warn=print):
-    """(current, highest close) for a swing anchor, in the swing's own unit.
+    """(current, cycle high) for a swing anchor, in the swing's own unit.
 
     ``rows`` must be the stored rows captured before the live overlay
     (``build`` returns them). The overlay rows already hold live prices, so
@@ -249,7 +263,9 @@ def resolve_swing_quote(swing, rows, live, warn=print):
        disagree after conversion (for example 12 GBP and 1,300p), the price is
        ambiguous: a warning is printed and the current price is omitted.
 
-    The highest close comes from live history only, converted the same way.
+    The cycle high comes from live history only, converted the same way, and
+    follows the portfolio rule: the highest intraday High on or after the
+    swing's ``macro_lo_date``, or None (stored high kept) when undated.
     """
     ticker = swing.ticker
     current = _live_in_unit(live.prices, live, ticker, swing.ccy)
@@ -269,7 +285,7 @@ def resolve_swing_quote(swing, rows, live, warn=print):
             warn(f"[swing] {ticker}: stored prices disagree in {swing.ccy} "
                  f"({', '.join(f'{v:g}' for v in values)}); current price omitted "
                  f"on the Fib Methodology sheet.")
-    return current, _live_in_unit(live.max_close, live, ticker, swing.ccy)
+    return current, live.high_since(ticker, swing.ccy, swing.macro_lo_date)
 
 
 def swing_key(swing):
@@ -311,8 +327,14 @@ def build_added_row(snapshot):
     The note carries only the provenance tag. Status, prices and levels are
     computed on every run, so writing them into the note would make it stale
     from the next run onward.
+
+    The low's date from ``fib_anchors`` is persisted as ``macro_lo_date`` so
+    later runs can promote the cycle high by the dated rule.
     """
     ttm_pe, fwd_pe, de, margin = snapshot.fundamentals
+    extra = {"source": "added"}
+    if snapshot.low_date:
+        extra["macro_lo_date"] = snapshot.low_date
     return PortfolioRow(
         asset=snapshot.name,
         ticker=snapshot.ticker,
@@ -326,7 +348,7 @@ def build_added_row(snapshot):
         margin=margin,
         notes=f"[Auto-added via --add {snapshot.ticker}]",
         rtype=RowType.STOCK,
-        extra={"source": "added"},
+        extra=extra,
     )
 
 
@@ -342,8 +364,8 @@ def register_snapshot(live, snapshot):
         live.analyst[snapshot.ticker] = snapshot.analyst
     if snapshot.d5 is not None:
         live.d5[snapshot.ticker] = snapshot.d5
-    if snapshot.max_close is not None:
-        live.max_close[snapshot.ticker] = snapshot.max_close
+    if snapshot.highs is not None:
+        live.highs[snapshot.ticker] = snapshot.highs
     if snapshot.operating_income is not None:
         live.operating_income[snapshot.ticker] = snapshot.operating_income
 

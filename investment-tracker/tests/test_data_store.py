@@ -105,6 +105,33 @@ class DataStoreTest(unittest.TestCase):
                 load_portfolio_rows(path)
             self.assertIn("VIX", str(ctx.exception))
 
+    def test_low_date_round_trips_and_a_malformed_one_fails_loudly(self):
+        """A dated low survives load/save as an optional key; a mistyped date
+        would silently disable promotion, so it stops the run instead."""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "portfolio_rows.json"
+            row = {"asset": "Co", "ticker": "CO", "macro_lo": 6.135,
+                   "macro_hi": 23.315, "macro_lo_date": "2025-04-07"}
+            path.write_text(json.dumps([row]))
+            loaded = load_portfolio_rows(path)[0]
+            self.assertEqual(loaded.macro_lo_date, "2025-04-07")
+            save_portfolio_rows(path, [loaded])
+            self.assertEqual(json.loads(path.read_text())[0]["macro_lo_date"],
+                             "2025-04-07")
+
+            path.write_text(json.dumps([dict(row, macro_lo_date="07/04/2025")]))
+            with self.assertRaises(RuntimeError) as ctx:
+                load_portfolio_rows(path)
+            self.assertIn("CO", str(ctx.exception))
+
+            swing = Path(tmp) / "macro.json"
+            swing.write_text(json.dumps([{"ticker": "LUNR", "ccy": "USD",
+                                          "macro_lo": 6.135, "macro_hi": 23.315,
+                                          "macro_lo_date": "2025-13-01"}]))
+            with self.assertRaises(RuntimeError) as ctx:
+                load_macro_swing_data(swing)
+            self.assertIn("LUNR", str(ctx.exception))
+
 
 class PortfolioRowTest(unittest.TestCase):
     def test_matches_asset_or_ticker_case_insensitively(self):

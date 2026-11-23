@@ -30,7 +30,7 @@ class SheetContext:
     analyst_data  ticker -> StaticEntry (unit, analyst tuple), static fallback
     live          raw LiveMarketData, keyed by ticker in provider units
     ath_updates   row identity -> (stored ATH, effective ATH) where superseded
-    swing_quotes  (ticker, ccy) -> (current, highest close) in that unit
+    swing_quotes  (ticker, ccy) -> (current, cycle high) in that unit
     d5_basis      exchange label -> date of the completed session used
 
     Every price-like lookup takes the row, not the ticker, because rows that
@@ -107,9 +107,9 @@ class SheetContext:
         """Returns a D5View in the row's unit, or None without usable history."""
         return self.live.d5_for(row)
 
-    def max_close_for(self, row):
-        """Highest close since the anchor low in the row's unit, or None."""
-        return self.live.max_close_for(row)
+    def cycle_high_for(self, row):
+        """Highest intraday High since the row's dated low, in its unit, or None."""
+        return self.live.cycle_high_for(row)
 
     def resolved_eps(self, row):
         """Returns (trailing_eps, verified) for a row, using the shared rule."""

@@ -86,9 +86,11 @@ def render(ws):
              size=10, indent=2)
     r = line(r, "")
     r = line(r, "STATUS AND SECTIONS", bold=True, size=11, color="2E75B6")
-    r = line(r, "Cycle ATH = max(stored ATH, highest close since the anchor low). "
-                "An amber ATH cell means the stored value was superseded; the run "
-                "log lists the new value to copy into portfolio_rows.json.",
+    r = line(r, "Cycle ATH = max(stored ATH, highest intraday High on or after the "
+                "dated anchor low, macro_lo_date). A row without a low date keeps "
+                "its stored ATH. An amber ATH cell means the stored value was "
+                "superseded; the run log lists the new value to copy into "
+                "portfolio_rows.json.",
              size=10, indent=2)
     r = line(r, "BELOW ANCHOR LOW - STRUCTURE BROKEN: price is under the 2022 low, "
                 "so the Fib structure no longer applies. Never shown as a buy.",

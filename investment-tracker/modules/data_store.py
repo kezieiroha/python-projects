@@ -12,15 +12,22 @@ import json
 import os
 
 from modules.calculations import validate_manual_levels
-from modules.models import MacroSwingRow, PortfolioRow, StaticEntry
+from modules.models import MacroSwingRow, PortfolioRow, StaticEntry, is_iso_date
+
+
+def _check_low_date(value, label):
+    """Raise when an optional ``macro_lo_date`` is present but not YYYY-MM-DD."""
+    if value is not None and not is_iso_date(value):
+        raise ValueError(f"{label}: macro_lo_date {value!r} is not YYYY-MM-DD")
 
 
 def load_portfolio_rows(path):
     """Load editable portfolio rows from workbook/data/portfolio_rows.json.
 
-    Each row's ``direction`` and manual-level order are validated on load. A
-    contradiction would silently invert the zone logic, so it stops the run
-    with the row named rather than rendering a wrong status.
+    Each row's ``direction``, manual-level order and optional ``macro_lo_date``
+    are validated on load. A contradiction would silently invert the zone
+    logic, and a malformed date would silently disable the cycle-high check,
+    so either stops the run with the row named.
     """
     try:
         with open(path, "r", encoding="utf-8") as fh:
@@ -29,9 +36,11 @@ def load_portfolio_rows(path):
             raise ValueError("expected a list of row objects")
         rows = [PortfolioRow.from_dict(item) for item in data if isinstance(item, dict)]
         for row in rows:
+            label = f"row {row.ticker or row.asset!r}"
             problem = validate_manual_levels(row)
             if problem:
-                raise ValueError(f"row {row.ticker or row.asset!r}: {problem}")
+                raise ValueError(f"{label}: {problem}")
+            _check_low_date(row.macro_lo_date, label)
         return rows
     except Exception as ex:
         raise RuntimeError(f"Could not load portfolio rows from {path}: {ex}") from ex
@@ -61,8 +70,10 @@ def load_macro_swing_data(path):
             raise ValueError("expected a list of row objects")
         swings = [MacroSwingRow.from_dict(item) for item in data if isinstance(item, dict)]
         for swing in swings:
+            label = f"anchor {swing.ticker or '(no ticker)'}"
             if not (swing.ccy and str(swing.ccy).strip()):
-                raise ValueError(f"anchor {swing.ticker or '(no ticker)'} has no ccy")
+                raise ValueError(f"{label} has no ccy")
+            _check_low_date(swing.macro_lo_date, label)
         return swings
     except Exception as ex:
         raise RuntimeError(f"Could not load macro swing data from {path}: {ex}") from ex

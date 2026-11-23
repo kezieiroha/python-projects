@@ -42,6 +42,7 @@ from modules.market_data import (
     fetch_alpha_vantage_eps,
     fetch_batch,
     fetch_ticker,
+    fib_anchors,
     moving_averages,
 )
 from modules.models import D5View, MacroSwingRow, PortfolioRow, StaticEntry
@@ -66,8 +67,14 @@ def stock(**fields):
     return PortfolioRow.from_dict(base)
 
 
+def high_series(points):
+    """A completed-session daily High series from {ISO date: value}."""
+    return pd.Series(list(points.values()), index=pd.to_datetime(list(points)))
+
+
 class EffectiveAthTest(unittest.TestCase):
-    """Issue 1: a stored ATH below the highest close is superseded."""
+    """Issue 1: a stored ATH below the cycle high since the dated low is
+    superseded; an undated low keeps the curated ATH."""
 
     def test_effective_ath_is_the_larger_value(self):
         self.assertEqual(effective_ath(288.35, 343.0), 343.0)
@@ -75,21 +82,121 @@ class EffectiveAthTest(unittest.TestCase):
         self.assertEqual(effective_ath(288.35, None), 288.35)
 
     def test_superseded_ath_lifts_levels_and_is_reported(self):
-        row = stock(ticker="AAPL", current=342.56, macro_lo=123.88, macro_hi=288.35)
-        live = LiveMarketData(max_close={"AAPL": 345.0}, currency={"AAPL": "USD"})
+        row = stock(ticker="AAPL", current=342.56, macro_lo=123.88, macro_hi=288.35,
+                    macro_lo_date="2022-12-28")
+        live = LiveMarketData(
+            highs={"AAPL": high_series({"2022-12-28": 129.0, "2026-11-13": 345.0})},
+            currency={"AAPL": "USD"})
         messages = []
         rows, updates = portfolio.apply_effective_ath([row], live, warn=messages.append)
         self.assertEqual(rows[0].macro_hi, 345.0)
         self.assertEqual(updates[rows[0].identity(0)], (288.35, 345.0))
-        self.assertTrue(any("AAPL" in m and "288.35" in m for m in messages))
+        self.assertTrue(any("AAPL" in m and "288.35" in m and "2022-12-28" in m
+                            for m in messages))
         zone = classify_row(rows[0])
         self.assertGreater(zone.al1, 225.52)
 
     def test_implausible_jump_is_ignored(self):
-        row = stock(ticker="X", macro_hi=45.88)
-        live = LiveMarketData(max_close={"X": 4588.0}, currency={"X": "USD"})
+        row = stock(ticker="X", macro_hi=45.88, macro_lo_date="2022-09-01")
+        live = LiveMarketData(
+            highs={"X": high_series({"2022-09-01": 30.0, "2026-01-02": 4588.0})},
+            currency={"X": "USD"})
         rows, updates = portfolio.apply_effective_ath([row], live, warn=lambda *_: None)
         self.assertEqual(rows[0].macro_hi, 45.88)
+        self.assertEqual(updates, {})
+
+    def test_undated_low_keeps_the_curated_ath(self):
+        row = stock(ticker="AAPL", macro_lo=123.88, macro_hi=288.35)
+        live = LiveMarketData(
+            highs={"AAPL": high_series({"2022-12-28": 129.0, "2026-11-13": 345.0})},
+            currency={"AAPL": "USD"})
+        messages = []
+        rows, updates = portfolio.apply_effective_ath([row], live, warn=messages.append)
+        self.assertEqual(rows[0].macro_hi, 288.35)
+        self.assertEqual(updates, {})
+        self.assertEqual(len(messages), 1)
+        self.assertIn("1 row(s) have no macro_lo_date", messages[0])
+
+
+class DatedCycleHighTest(unittest.TestCase):
+    """LUNR regression: the 81.99 close of 22 Feb 2023 predates the low of
+    7 Apr 2025, so it is ineligible; the cycle high is the 46.75 High of
+    28 May 2026. The same rule holds for --add, rows and swing anchors."""
+
+    HIGHS = high_series({
+        "2022-09-01": 12.0,
+        "2023-02-22": 81.99,     # SPAC spike, before the low
+        "2025-04-07": 6.5,       # the dated low's session
+        "2026-05-28": 46.75,     # highest High on or after the low
+        "2026-11-20": 10.0,
+    })
+
+    def _live(self):
+        return LiveMarketData(highs={"LUNR": self.HIGHS}, currency={"LUNR": "USD"})
+
+    def _row(self, **fields):
+        base = dict(asset="Intuitive Machines", ticker="LUNR", current=9.65,
+                    macro_lo=6.135, macro_hi=23.315)
+        base.update(fields)
+        return stock(**base)
+
+    def test_dated_row_takes_the_high_after_its_low(self):
+        rows, updates = portfolio.apply_effective_ath(
+            [self._row(macro_lo_date="2025-04-07")], self._live(),
+            warn=lambda *_: None)
+        self.assertEqual(rows[0].macro_hi, 46.75)
+        self.assertEqual(updates[rows[0].identity(0)], (23.315, 46.75))
+
+    def test_undated_row_is_not_promoted(self):
+        rows, updates = portfolio.apply_effective_ath(
+            [self._row()], self._live(), warn=lambda *_: None)
+        self.assertEqual(rows[0].macro_hi, 23.315)
+        self.assertEqual(updates, {})
+
+    def test_swing_anchor_uses_the_same_rule(self):
+        from openpyxl import Workbook
+        from workbook import methodology
+
+        dated = MacroSwingRow(ticker="LUNR", ccy="USD", macro_lo=6.135,
+                              macro_lo_date="2025-04-07", macro_hi=23.315)
+        undated = MacroSwingRow(ticker="LUNR", ccy="USD", macro_lo=6.135,
+                                macro_hi=23.315)
+        live = self._live()
+        self.assertEqual(portfolio.resolve_swing_quote(dated, [], live)[1], 46.75)
+        self.assertIsNone(portfolio.resolve_swing_quote(undated, [], live)[1])
+
+        quotes = {portfolio.swing_key(dated):
+                  portfolio.resolve_swing_quote(dated, [], live)}
+        ws = Workbook().active
+        methodology.render(ws, [dated], SheetContext(
+            run_date="d", data_source="s", live=live, swing_quotes=quotes))
+        shown = [r[2].value for r in ws.iter_rows() if r[0].value == "LUNR"]
+        self.assertEqual(shown, ["46.75"])
+
+    def test_add_anchors_and_persisted_low_date(self):
+        """--add dates the low, takes the High from that date on, and the
+        new row persists the date so later runs use the same rule."""
+        # A listing that post-dates the 2022 window (LUNR listed in 2023), so
+        # the low is taken from the full history and the 2023 spike precedes it.
+        history = pd.DataFrame(
+            {"High": [81.99, 6.9, 46.75, 10.2], "Low": [60.0, 6.14, 40.0, 9.5]},
+            index=self.HIGHS.index[1:])
+        self.assertEqual(fib_anchors(history), (6.14, 46.75, "2025-04-07"))
+
+        snapshot = TickerSnapshot(
+            ticker="LUNR", name="Intuitive Machines", currency="USD", price=9.65,
+            bear_low=6.135, cycle_high=46.75, moving_averages=(None,) * 5,
+            fundamentals=(None, None, None, None), analyst=None,
+            low_date="2025-04-07")
+        row = portfolio.build_added_row(snapshot)
+        self.assertEqual(row.macro_lo_date, "2025-04-07")
+        self.assertEqual(row.to_dict()["macro_lo_date"], "2025-04-07")
+
+    def test_history_that_misses_the_low_date_is_not_promoted(self):
+        row = self._row(macro_lo_date="2021-08-20")
+        rows, updates = portfolio.apply_effective_ath(
+            [row], self._live(), warn=lambda *_: None)
+        self.assertEqual(rows[0].macro_hi, 23.315)
         self.assertEqual(updates, {})
 
 
@@ -116,19 +223,19 @@ class UnitsTest(unittest.TestCase):
         self.assertFalse(units_mismatch(2.79, 83.2))   # QS, about 30x
 
     def test_live_values_convert_per_row_and_raw_data_is_untouched(self):
-        row = stock(ticker="FG.L", ccy="GBP")
+        row = stock(ticker="FG.L", ccy="GBP", macro_lo_date="2022-06-16")
         live = LiveMarketData(
             prices={"FG.L": 3894.0},
             moving_averages={"FG.L": (4000.0, 3900.0, 3800.0, None, 3700.0)},
             currency={"FG.L": "GBp"},
-            max_close={"FG.L": 4500.0},
+            highs={"FG.L": high_series({"2022-06-16": 2200.0, "2026-06-22": 4500.0})},
             d5={"FG.L": D5View(3900.0, 3850.0, 3800.0, 3820.0, "2026-11-20", "LSE")},
             analyst={"FG.L": ("Buy", 5, 5000.0)},
         )
         self.assertEqual(live.price_for(row), 38.94)
         self.assertEqual(live.moving_averages_for(row)[0], 40.0)
         self.assertIsNone(live.moving_averages_for(row)[3])
-        self.assertEqual(live.max_close_for(row), 45.0)
+        self.assertEqual(live.cycle_high_for(row), 45.0)
         self.assertEqual(live.d5_for(row).close, 39.0)
         self.assertEqual(live.analyst_for(row)[2], 50.0)
         # Raw provider values stay in pence for any other row on this ticker.
@@ -252,10 +359,10 @@ class MissingMovingAveragesTest(unittest.TestCase):
         """End to end through ``fetch_batch`` with a one-symbol batch."""
         def frame(periods, freq):
             idx = pd.date_range("2023-01-02", periods=periods, freq=freq, tz="UTC")
-            columns = pd.MultiIndex.from_tuples([("IREN", "Close")],
+            columns = pd.MultiIndex.from_tuples([("IREN", "Close"), ("IREN", "High")],
                                                 names=["Ticker", "Price"])
-            return pd.DataFrame({columns[0]: [10.0 + i for i in range(periods)]},
-                                index=idx)
+            return pd.DataFrame({c: [10.0 + i for i in range(periods)]
+                                 for c in columns}, index=idx)
 
         class Client:
             def download(self, symbols, interval="1d", **_kw):
@@ -268,7 +375,22 @@ class MissingMovingAveragesTest(unittest.TestCase):
                            now=datetime(2026, 11, 22, 12, tzinfo=timezone.utc))
         self.assertIn("IREN", live.d5)
         self.assertIsNotNone(live.moving_averages["IREN"][0])
-        self.assertIn("IREN", live.max_close)
+        self.assertIn("IREN", live.highs)
+
+    def test_daily_download_reads_adj_close_and_unadjusted_high(self):
+        """With auto_adjust=False the daily frame carries Close, Adj Close and
+        High; MAs/D5 read Adj Close (as before) and anchors read High."""
+        from modules.market_data import _field_series
+        idx = pd.date_range("2024-01-01", periods=3, freq="D")
+        columns = pd.MultiIndex.from_tuples(
+            [("X", "Close"), ("X", "Adj Close"), ("X", "High")],
+            names=["Ticker", "Price"])
+        raw = pd.DataFrame({columns[0]: [10.0, 11.0, 12.0],
+                            columns[1]: [9.5, 10.5, 12.0],
+                            columns[2]: [10.5, 11.5, 12.5]}, index=idx)
+        self.assertEqual(list(_close_series(raw, "X")), [9.5, 10.5, 12.0])
+        self.assertEqual(list(_field_series(raw, "X", "High")), [10.5, 11.5, 12.5])
+        self.assertTrue(_field_series(raw, "MISSING", "High").empty)
 
 
 class QualityGateTest(unittest.TestCase):
@@ -446,14 +568,14 @@ class CurrencyMismatchTest(unittest.TestCase):
             prices={"GRA": 30.0},
             moving_averages={"GRA": (31.0, 32.0, 33.0, 34.0, 35.0)},
             currency={"GRA": "CAD"},
-            max_close={"GRA": 60.0},
+            highs={"GRA": high_series({"2022-09-01": 20.0, "2026-01-02": 60.0})},
             d5={"GRA": D5View(30.0, 29.0, 28.0, 27.0, "2026-11-20", "TSX")},
             analyst={"GRA": ("Buy", 4, 40.0)},
             fundamentals={"GRA": (15.0, 12.0, 0.3, 0.1)},
         )
 
     def test_cad_quote_on_usd_row_is_withheld_and_warned(self):
-        row = stock(ticker="GRA", ccy="USD", current=15.0)
+        row = stock(ticker="GRA", ccy="USD", current=15.0, macro_lo_date="2022-09-01")
         live = self._live()
         warnings = []
         portfolio.report_unit_conversions([row], live, warn=warnings.append)
@@ -464,7 +586,7 @@ class CurrencyMismatchTest(unittest.TestCase):
         self.assertIsNone(live.price_for(row))
         self.assertIsNone(live.moving_averages_for(row))
         self.assertIsNone(live.d5_for(row))
-        self.assertIsNone(live.max_close_for(row))
+        self.assertIsNone(live.cycle_high_for(row))
         self.assertEqual(live.analyst_for(row), ("Buy", 4, None))
 
         updated = portfolio.apply_live_overlay([row], live)[0]
@@ -472,8 +594,10 @@ class CurrencyMismatchTest(unittest.TestCase):
         self.assertEqual(updated.ttm_pe, 15.0)   # dimensionless ratio kept
 
     def test_cad_and_usd_rows_sharing_a_ticker_in_both_orders(self):
-        cad = stock(asset="Graphite CAD", ticker="GRA", ccy="CAD", current=25.0)
-        usd = stock(asset="Graphite USD", ticker="GRA", ccy="USD", current=15.0)
+        cad = stock(asset="Graphite CAD", ticker="GRA", ccy="CAD", current=25.0,
+                    macro_lo_date="2022-09-01")
+        usd = stock(asset="Graphite USD", ticker="GRA", ccy="USD", current=15.0,
+                    macro_lo_date="2022-09-01")
         for rows in ([cad, usd], [usd, cad]):
             live = self._live()
             out = {r.asset: r for r in portfolio.apply_live_overlay(rows, live)}
@@ -483,8 +607,8 @@ class CurrencyMismatchTest(unittest.TestCase):
             self.assertIsNone(live.moving_averages_for(usd))
             self.assertEqual(live.d5_for(cad).close, 30.0)
             self.assertIsNone(live.d5_for(usd))
-            self.assertEqual(live.max_close_for(cad), 60.0)
-            self.assertIsNone(live.max_close_for(usd))
+            self.assertEqual(live.cycle_high_for(cad), 60.0)
+            self.assertIsNone(live.cycle_high_for(usd))
             self.assertEqual(live.analyst_for(cad)[2], 40.0)
             self.assertIsNone(live.analyst_for(usd)[2])
 
@@ -495,12 +619,14 @@ class CurrencyMismatchTest(unittest.TestCase):
 
     def test_pounds_and_pence_rows_sharing_a_ticker(self):
         pence = stock(asset="Pence", ticker="AB.L", ccy="GBp", current=1000.0,
-                      macro_lo=500.0, macro_hi=1500.0)
+                      macro_lo=500.0, macro_hi=1500.0, macro_lo_date="2022-10-13")
         pounds = stock(asset="Pounds", ticker="AB.L", ccy="GBP", current=10.0,
-                       macro_lo=5.0, macro_hi=15.0)
+                       macro_lo=5.0, macro_hi=15.0, macro_lo_date="2022-10-13")
         for rows in ([pence, pounds], [pounds, pence]):
-            live = LiveMarketData(prices={"AB.L": 1200.0}, currency={"AB.L": "GBp"},
-                                  max_close={"AB.L": 1800.0})
+            live = LiveMarketData(
+                prices={"AB.L": 1200.0}, currency={"AB.L": "GBp"},
+                highs={"AB.L": high_series({"2022-10-13": 520.0,
+                                            "2026-06-22": 1800.0})})
             out = {r.asset: r for r in portfolio.apply_live_overlay(rows, live)}
             self.assertEqual(out["Pence"].current, 1200.0)
             self.assertEqual(out["Pounds"].current, 12.0)
@@ -714,13 +840,17 @@ class SwingQuoteTest(unittest.TestCase):
     def test_live_quote_is_preferred_and_converted(self):
         rows = [stock(asset="P", ticker="AB.L", ccy="GBp", current=1200.0),
                 stock(asset="Q", ticker="AB.L", ccy="GBX", current=1300.0)]
-        live = LiveMarketData(prices={"AB.L": 1250.0}, currency={"AB.L": "GBp"},
-                              max_close={"AB.L": 2000.0})
+        live = LiveMarketData(
+            prices={"AB.L": 1250.0}, currency={"AB.L": "GBp"},
+            highs={"AB.L": high_series({"2022-10-13": 700.0, "2026-01-02": 2000.0})})
         current, _status, warnings = self._both_orders(rows, live)
         self.assertEqual(current, 12.5)
         self.assertEqual(warnings, [])
-        _cur, max_close = portfolio.resolve_swing_quote(self.swing, rows, live)
-        self.assertEqual(max_close, 20.0)
+        # Undated anchor: stored high kept. Dated anchor: converted cycle high.
+        self.assertIsNone(portfolio.resolve_swing_quote(self.swing, rows, live)[1])
+        dated = MacroSwingRow(ticker="AB.L", ccy="GBP", macro_lo=6.0,
+                              macro_lo_date="2022-10-13", macro_hi=18.0)
+        self.assertEqual(portfolio.resolve_swing_quote(dated, rows, live)[1], 20.0)
 
 
 class AthHighlightTest(unittest.TestCase):
@@ -735,11 +865,13 @@ class AthHighlightTest(unittest.TestCase):
             stock(asset="Excluded", ticker="EXC", current=150.0),
             PortfolioRow.from_dict({"asset": "SECTION", "rtype": "SECTION"}),
             stock(asset="Lifted", ticker="AB.L", ccy="GBp", current=1200.0,
-                  macro_lo=500.0, macro_hi=1500.0),
+                  macro_lo=500.0, macro_hi=1500.0, macro_lo_date="2022-10-13"),
             stock(asset="Kept", ticker="AB.L", ccy="USD", current=15.0,
-                  macro_lo=5.0, macro_hi=18.0),
+                  macro_lo=5.0, macro_hi=18.0, macro_lo_date="2022-10-13"),
         ]
-        live = LiveMarketData(currency={"AB.L": "GBp"}, max_close={"AB.L": 1800.0})
+        live = LiveMarketData(
+            currency={"AB.L": "GBp"},
+            highs={"AB.L": high_series({"2022-10-13": 520.0, "2026-06-22": 1800.0})})
         lifted, updates = portfolio.apply_effective_ath(rows, live,
                                                         warn=lambda *_: None)
         self.assertEqual(list(updates), [lifted[2].identity(2)])

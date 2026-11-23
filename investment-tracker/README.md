@@ -70,7 +70,7 @@ All data is fetched live from Yahoo Finance via `yfinance`:
 | Current prices | Yahoo Finance | Configured tickers in `workbook/data/market_sources.json` |
 | D200 SMA | Yahoo Finance | 200-day simple moving average |
 | D5 EMA flag | Yahoo Finance | 5-day EMA of completed daily closes; an unfinished session bar is dropped |
-| Effective cycle ATH | Yahoo Finance | max(stored ATH, highest close since 2022-09-01); superseded values are listed in the run log |
+| Effective cycle ATH | Yahoo Finance | max(stored ATH, highest intraday High on or after the row's `macro_lo_date`), split-adjusted and not dividend-adjusted; rows without a low date keep the stored ATH; superseded values are listed in the run log |
 | W20 / W50 EMA | Yahoo Finance | Daily resampled to weekly (Fri close) |
 | M20 / M50 EMA | Yahoo Finance | 10Y monthly close |
 | TTM P/E | Yahoo Finance `.info` | None for loss-makers |
@@ -88,10 +88,10 @@ If `yfinance` cannot reach Yahoo Finance, the script falls back to the static va
 
 | Data | How to update |
 |---|---|
-| 2022 bear market lows | Edit `workbook/data/portfolio_rows.json` |
+| 2022 bear market lows | Edit `workbook/data/portfolio_rows.json`; add `"macro_lo_date": "YYYY-MM-DD"` once the low's date is verified, which enables automatic cycle-ATH promotion (`--add` records it for new rows) |
 | Cycle ATHs | Edit `workbook/data/portfolio_rows.json` |
 | Thesis / notes | Edit `workbook/data/portfolio_rows.json` |
-| Fib Methodology macro swing anchors | Edit `workbook/data/macro_swing_data.json`: `ticker`, `ccy` (required) and the anchors; current price and status are computed in that unit |
+| Fib Methodology macro swing anchors | Edit `workbook/data/macro_swing_data.json`: `ticker`, `ccy` (required), the anchors, and optional `macro_lo_date` (same promotion rule as portfolio rows); current price and status are computed in that unit |
 | Manual-level direction | Add `"direction": "up"` to rows where a higher reading is the alert (VIX, TNX, DXY) |
 | Fallback moving averages | Edit `workbook/data/ma_data.json`: `{"ccy": "GBp", "values": [...]}` per ticker; an entry without `ccy` is withheld with a warning |
 | Fallback analyst consensus / targets | Edit `workbook/data/analyst_data.json`, same shape; without `ccy` the target is withheld and consensus kept |

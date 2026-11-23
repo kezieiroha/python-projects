@@ -57,11 +57,29 @@ ROW_FIELDS = (
     "ttm_pe", "fwd_pe", "de", "margin", "notes", "rtype", "manual",
 )
 
-MACRO_SWING_FIELDS = ("ticker", "ccy", "macro_lo", "macro_hi")
+MACRO_SWING_FIELDS = ("ticker", "ccy", "macro_lo", "macro_lo_date", "macro_hi")
 
 
 def _clean(value):
     return str(value or "").strip().upper()
+
+
+def is_iso_date(value):
+    """True when ``value`` is a ``YYYY-MM-DD`` date string.
+
+    Used to validate the optional ``macro_lo_date`` on load, so a mistyped
+    date stops the run with the row named instead of silently disabling the
+    cycle-high check for that row.
+    """
+    from datetime import date
+
+    if not isinstance(value, str):
+        return False
+    try:
+        date.fromisoformat(value)
+    except ValueError:
+        return False
+    return True
 
 
 @dataclass(frozen=True)
@@ -154,6 +172,17 @@ class PortfolioRow:
         return str(self.extra.get("direction") or Direction.DOWN).lower()
 
     @property
+    def macro_lo_date(self):
+        """ISO date of the anchor low, from the optional ``macro_lo_date`` key.
+
+        Only a dated low can have its cycle high promoted automatically: the
+        cycle high is the highest intraday High on or after this date. Rows
+        without it (legacy, unverified) keep their curated ``macro_hi``. Kept
+        in ``extra`` so undated rows stay byte-identical on disk.
+        """
+        return self.extra.get("macro_lo_date")
+
+    @property
     def na_label(self):
         """Placeholder shown when a fundamentals value is unavailable."""
         return "ETF" if self.is_etf else "N/A"
@@ -165,14 +194,19 @@ class MacroSwingRow:
 
     Only the anchors and their unit are stored. Current price, AL1 and status
     are computed at run time from live data, so this sheet can no longer show
-    stale values. ``ccy`` is required: the current price and highest close are
+    stale values. ``ccy`` is required: the current price and cycle high are
     converted into it, so the levels never depend on which portfolio row
     carrying the ticker happens to come first.
+
+    ``macro_lo_date`` is optional. With it, the cycle high is promoted to the
+    highest intraday High on or after that date, the same rule as portfolio
+    rows; without it, the stored ``macro_hi`` is kept.
     """
 
     ticker: str = ""
     ccy: str | None = None
     macro_lo: float | None = None
+    macro_lo_date: str | None = None
     macro_hi: float | None = None
 
     @classmethod

@@ -39,12 +39,13 @@ class StubClient:
     """Minimal stand-in for the yfinance module."""
 
     def __init__(self, symbols, info_by_symbol=None, fail_info=(), daily_len=400,
-                 quarterly_by_symbol=None):
+                 quarterly_by_symbol=None, fail_quarterly=()):
         self.symbols = symbols
         self.info_by_symbol = info_by_symbol or {}
         self.quarterly_by_symbol = quarterly_by_symbol or {}
         self.quarterly_calls = []
         self.fail_info = set(fail_info)
+        self.fail_quarterly = set(fail_quarterly)
         self.daily = [float(i) for i in range(1, daily_len + 1)]
         self.monthly = [float(i) for i in range(1, 61)]
         self.download_calls = []
@@ -71,6 +72,8 @@ class StubClient:
             @property
             def quarterly_income_stmt(self):
                 outer.quarterly_calls.append(symbol)
+                if symbol in outer.fail_quarterly:
+                    raise RuntimeError(f"statement request failed for {symbol}")
                 return outer.quarterly_by_symbol.get(symbol, pd.DataFrame())
 
             def history(self, **_kwargs):
@@ -162,6 +165,25 @@ class FetchBatchTest(unittest.TestCase):
         self.assertEqual(live.operating_income, {"IONQ": -1270.0})
         self.assertEqual(client.quarterly_calls, ["IONQ"])
 
+    def test_statement_failure_keeps_the_rest_of_the_batch_refresh(self):
+        """A failed quarterly-statement request is optional data: EPS, the
+        .info quote and analyst fields for that ticker are still recorded."""
+        client = StubClient(
+            ["IONQ"],
+            {"IONQ": {"currency": "USD", "profitMargins": 0.67,
+                      "operatingMargins": -3.06, "trailingEps": 1.73,
+                      "regularMarketPrice": 23.36, "recommendationKey": "buy",
+                      "numberOfAnalystOpinions": 14, "targetMeanPrice": 54.0}},
+            fail_quarterly=["IONQ"],
+        )
+        warnings = []
+        live = fetch_batch(["IONQ"], {}, REC_MAP, warn=warnings.append, client=client)
+        self.assertEqual(live.eps["IONQ"], (1.73, False))
+        self.assertEqual(live.prices["IONQ"], 23.36)
+        self.assertEqual(live.analyst["IONQ"], ("Buy", 14, 54.0))
+        self.assertNotIn("IONQ", live.operating_income)
+        self.assertTrue(any("quarterly statement" in str(w) for w in warnings))
+
 
 class FetchTickerTest(unittest.TestCase):
     def test_snapshot_carries_name_currency_anchors_and_mas(self):
@@ -176,6 +198,7 @@ class FetchTickerTest(unittest.TestCase):
         self.assertEqual(snap.currency, "GBp")
         self.assertEqual(snap.price, 123.0)
         self.assertEqual((snap.bear_low, snap.cycle_high), (50.0, 200.0))
+        self.assertEqual(snap.low_date, "2022-09-01")
         self.assertEqual(len(snap.moving_averages), 5)
         self.assertEqual(snap.analyst[0], "Strong Buy")
 
@@ -191,6 +214,20 @@ class FetchTickerTest(unittest.TestCase):
         )
         snap = fetch_ticker("NEW", REC_MAP, warn=lambda *_: None, client=client)
         self.assertEqual(snap.operating_income, -4.0)
+
+    def test_add_statement_failure_keeps_the_snapshot(self):
+        client = StubClient(
+            ["NEW"], {"NEW": {"currency": "USD", "profitMargins": 0.2,
+                              "operatingMargins": -0.1,
+                              "regularMarketPrice": 120.0}},
+            fail_quarterly=["NEW"],
+        )
+        warnings = []
+        snap = fetch_ticker("NEW", REC_MAP, warn=warnings.append, client=client)
+        self.assertIsNotNone(snap)
+        self.assertEqual(snap.price, 120.0)
+        self.assertIsNone(snap.operating_income)
+        self.assertTrue(any("quarterly statement" in str(w) for w in warnings))
 
     def test_ticker_symbol_used_when_provider_has_no_name(self):
         client = StubClient(["ZZZ"], {"ZZZ": {}})

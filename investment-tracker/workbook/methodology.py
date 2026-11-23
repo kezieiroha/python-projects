@@ -1,12 +1,14 @@
 """Fib Methodology sheet.
 
 Explains the alert-level framework and shows historical macro swing examples.
-Only the anchors and their unit are stored (workbook/data/macro_swing_data.json).
-Current price and highest close are resolved in each anchor's own unit before
-rendering (portfolio.resolve_swing_quote: live quote first, then stored row
-prices, never dependent on row order). The cycle ATH is the effective ATH, and
-AL1 and status are computed with the same classify_zone used everywhere else,
-so this sheet cannot go stale.
+Only the anchors, their unit and an optional low date are stored
+(workbook/data/macro_swing_data.json). Current price and cycle high are
+resolved in each anchor's own unit before rendering
+(portfolio.resolve_swing_quote: live quote first, then stored row prices, never
+dependent on row order). The cycle ATH is the effective ATH under the same rule
+as portfolio rows: the highest intraday High since a dated low, or the stored
+high when the low is undated. AL1 and status are computed with the same
+classify_zone used everywhere else, so this sheet cannot go stale.
 """
 
 from openpyxl.utils import get_column_letter
@@ -60,8 +62,8 @@ LEVELS = [
 def render(ws, macro_swing_rows, ctx):
     """Write the Fib Methodology sheet.
 
-    ``ctx.swing_quotes`` supplies each anchor's current price and highest
-    close, already in the anchor's unit.
+    ``ctx.swing_quotes`` supplies each anchor's current price and cycle high,
+    already in the anchor's unit (cycle high None for an undated low).
     """
     def write(row, values, bold=False, bg=None, colors=None):
         for ci, val in enumerate(values, 1):
@@ -107,8 +109,8 @@ def render(ws, macro_swing_rows, ctx):
     for swing in macro_swing_rows:
         # Resolved in the swing's own unit, independent of row order
         # (portfolio.resolve_swing_quote).
-        current, max_close = ctx.swing_quotes.get(swing_key(swing), (None, None))
-        macro_hi = effective_ath(swing.macro_hi, max_close)
+        current, cycle_high = ctx.swing_quotes.get(swing_key(swing), (None, None))
+        macro_hi = effective_ath(swing.macro_hi, cycle_high)
         zone = classify_zone(current, swing.macro_lo, macro_hi)
         bg, fc, _short, _plain = ZONE_STYLES[zone.rank]
         if zone.rank == RANK_DEEP:

@@ -5,8 +5,18 @@ normalized values and never see provider payload shapes.
 
 Both the batch refresh and the ``--add`` refresh use the same download windows
 and the same per-series computation (``series_metrics``), so a ticker cannot end
-up with different moving averages, D5 values or highest close depending on
-which path fetched it.
+up with different moving averages, D5 values or cycle highs depending on which
+path fetched it.
+
+Price basis. The daily download is unadjusted for dividends
+(``auto_adjust=False``) but, as every Yahoo series is, adjusted for splits.
+Two series are taken from it:
+
+- ``Adj Close`` (dividend-adjusted) for moving averages and D5, identical to
+  the ``Close`` an ``auto_adjust=True`` download returns;
+- intraday ``High`` and ``Low`` for Fib anchors. Anchors use the
+  split-adjusted, dividend-unadjusted prices for both the low and the high,
+  so a stored low keeps matching its own bar as dividends accrue.
 """
 
 from __future__ import annotations
@@ -21,17 +31,22 @@ from modules.calculations import (
     exchange_for,
     live_unit_factor,
     scale_amount,
+    shows_positive_profit,
 )
 from modules.models import D5View
 
 
 # -- Download windows shared by every fetch path ------------------------------
-# Daily from the anchor-low window -> highest close since the anchor low, the
+# Daily from the anchor-low window -> intraday Highs for the cycle high, the
 #                                     D5 EMA, and (on the last 2 years only)
 #                                     D200 SMA and weekly EMAs
 # Hourly 5D                        -> current price (avoids stale daily close)
 # Monthly 10Y                      -> monthly EMAs
 DAILY_WINDOW = {"start": ANCHOR_START, "interval": "1d"}
+
+#: The daily download keeps dividend-unadjusted OHLC plus ``Adj Close`` (see
+#: the module docstring). Hourly and monthly stay dividend-adjusted.
+DAILY_AUTO_ADJUST = False
 HOURLY_WINDOW = {"period": "5d", "interval": "60m"}
 MONTHLY_WINDOW = {"period": "10y", "interval": "1mo"}
 
@@ -69,9 +84,14 @@ class LiveMarketData:
     ``eps_currency`` is the reporting unit of ``eps``, recorded only where it is
     established; a missing entry means the unit is unknown.
 
+    ``highs`` holds, per ticker, the completed-session intraday High series
+    (split-adjusted, dividend-unadjusted, provider unit). Rows sharing a
+    ticker can have different low dates, so the series is kept whole and each
+    row or swing anchor takes its own maximum (``high_since``).
+
     ``operating_income`` holds a verified trailing operating income (four
-    reported quarters summed) only for tickers where the provider showed
-    positive net income alongside an operating loss. Only its sign is used,
+    consecutive reported quarters summed) only for tickers where the provider
+    showed positive profit alongside an operating loss. Only its sign is used,
     so it is not unit-converted.
     """
 
@@ -83,7 +103,7 @@ class LiveMarketData:
     analyst: dict = field(default_factory=dict)
     currency: dict = field(default_factory=dict)
     d5: dict = field(default_factory=dict)
-    max_close: dict = field(default_factory=dict)
+    highs: dict = field(default_factory=dict)
     operating_income: dict = field(default_factory=dict)
 
     def has_row_overlay(self):
@@ -103,7 +123,7 @@ class LiveMarketData:
         """True when any currency-denominated live value exists for ``ticker``."""
         return any(ticker in store for store in (
             self.prices, self.moving_averages, self.d5,
-            self.max_close, self.analyst))
+            self.highs, self.analyst))
 
     def price_for(self, row):
         """Live price in the row's unit, or None (absent or withheld)."""
@@ -127,12 +147,24 @@ class LiveMarketData:
             return None
         return view if factor == 1 else view.scaled(factor)
 
-    def max_close_for(self, row):
-        """Highest close since the anchor low in the row's unit, or None."""
-        factor = self.unit_factor_for(row)
+    def high_since(self, ticker, ccy, low_date):
+        """Highest completed-session intraday High on or after ``low_date``,
+        converted into ``ccy``; None when it cannot be established.
+
+        None for an undated low (legacy, unverified: keep the curated high),
+        a currency that does not convert, or history that does not reach back
+        to ``low_date`` (the maximum would be unverifiable).
+        """
+        if not low_date:
+            return None
+        factor = live_unit_factor(self.currency.get(ticker), ccy)
         if factor is None:
             return None
-        return scale_amount(self.max_close.get(row.ticker), factor)
+        return scale_amount(highest_since(self.highs.get(ticker), low_date), factor)
+
+    def cycle_high_for(self, row):
+        """The row's cycle high since its dated low, in the row's unit, or None."""
+        return self.high_since(row.ticker, row.ccy, row.macro_lo_date)
 
     def analyst_for(self, row):
         """(consensus, count, target) with the target in the row's unit.
@@ -290,6 +322,9 @@ def completed_closes(daily_close, symbol, now_utc):
     daily bar is today's partial session. It is dropped so every close-based
     signal uses completed sessions only, and ``intraday`` is True so the row can
     be marked as carrying an intraday Current price.
+
+    Works on any date-indexed daily Series or DataFrame, so the High series
+    and the ``--add`` anchor history drop the same unfinished bar.
     """
     if not len(daily_close):
         return daily_close, False
@@ -320,59 +355,108 @@ def d5_view(closes, symbol, intraday):
     )
 
 
-def series_metrics(daily, monthly, symbol, now_utc):
-    """Return (moving_averages, d5_view, max_close) for one symbol.
+def series_metrics(daily, daily_high, monthly, symbol, now_utc):
+    """Return (moving_averages, d5_view, highs) for one symbol.
 
-    ``max_close`` is the highest completed close since ANCHOR_START, used to
-    supersede a stale stored cycle ATH.
+    ``daily`` is the dividend-adjusted daily close, ``daily_high`` the
+    dividend-unadjusted intraday High from the same download. ``highs`` is
+    that High series restricted to completed sessions (an unfinished bar is
+    dropped, as for D5), or None when empty. Each row takes its cycle high
+    from it, starting at its own dated low (``highest_since``).
     """
     closes, intraday = completed_closes(daily, symbol, now_utc)
-    anchored = closes[closes.index >= ANCHOR_START]
-    max_close = rounded(anchored.max()) if len(anchored) else None
+    highs, _intraday = completed_closes(daily_high, symbol, now_utc)
     return (
         moving_averages(daily, monthly),
         d5_view(closes, symbol, intraday),
-        max_close,
+        highs if len(highs) else None,
     )
 
 
+def _session_dates(index):
+    """Calendar dates of a daily index, ignoring timezone and time of day."""
+    return [ts.date() for ts in index]
+
+
+def highest_since(highs, low_date):
+    """Highest value in a daily High series on or after ``low_date``, or None.
+
+    ``low_date`` is an ISO date string. Returns None when the series is empty
+    or does not reach back to ``low_date``: a High before the first downloaded
+    bar could be the true maximum, so the result would be unverifiable.
+    """
+    from datetime import date
+
+    if highs is None or not len(highs) or not low_date:
+        return None
+    start = date.fromisoformat(low_date)
+    dates = _session_dates(highs.index)
+    if dates[0] > start:
+        return None
+    eligible = highs[[d >= start for d in dates]].dropna()
+    return rounded(eligible.max()) if len(eligible) else None
+
+
 def fib_anchors(history):
-    """Derive (bear_low, cycle_high) from a long daily OHLC history.
+    """Derive (bear_low, cycle_high, low_date) from a daily OHLC history.
+
+    ``history`` must hold completed sessions only, in split-adjusted,
+    dividend-unadjusted prices (both anchors on the same basis).
 
     The low is dated first: the lowest intraday Low in the 2022 bear window, or
     in the full history when the ticker post-dates that window. The high is
     then the highest intraday High on or after that date, so a peak that
     predates the low (a 2021 high, for example) can never become the cycle
-    high. Both anchors are intraday extremes, so they share a price basis.
+    high. ``low_date`` is the low's ISO date, persisted as ``macro_lo_date``
+    so later runs apply the same rule (``highest_since``).
     """
     bear_window = history.loc[BEAR_WINDOW_START:BEAR_WINDOW_END]
     source = bear_window if not bear_window.empty else history
     lows = source["Low"].dropna()
     if not len(lows):
-        return None, None
+        return None, None, None
+    low_at = lows.idxmin()
     bear_low = round(float(lows.min()), 2)
 
-    highs = history.loc[lows.idxmin():, "High"].dropna()
+    highs = history.loc[low_at:, "High"].dropna()
     cycle_high = round(float(highs.max()), 2) if len(highs) else None
 
-    return bear_low, cycle_high
+    return bear_low, cycle_high, low_at.date().isoformat()
 
 
 #: Reported quarters summed into a trailing operating income figure.
 TTM_QUARTERS = 4
 
+#: Allowed days between consecutive fiscal quarter ends. Calendar quarters
+#: are 89 to 92 days apart; 52/53-week fiscal years give 91 or 98 days.
+QUARTER_GAP_DAYS = (80, 100)
+
+
+def _info_eps(info):
+    """Trailing EPS as ``resolve_eps`` would find it from provider info.
+
+    yfinance ``trailingEps`` first, else derived from price / trailing P/E.
+    """
+    eps = to_float(info.get("trailingEps"))
+    if eps is not None:
+        return eps
+    pe, price = positive_pe(info.get("trailingPE")), realtime_price(info)
+    return round(price / pe, 2) if pe and price else None
+
 
 def shows_profit_with_operating_loss(info):
-    """True when provider info reports a positive net margin but a negative
-    operating margin.
+    """True when provider info shows positive profit but a negative operating
+    margin, so the quarterly statement is worth requesting.
 
-    A cheap pre-filter from the ``.info`` payload already fetched, so the
-    quarterly statement (one more provider call) is only requested for the
-    few tickers where it matters.
+    Profit evidence is ``calculations.shows_positive_profit`` on the same
+    inputs the workbook row gets: the net margin (``net_margin``) and the
+    trailing EPS (``_info_eps``). Either one positive is enough, exactly as
+    in ``assess_fundamentals``. The operating margin is only a cheap
+    pre-filter; the loss itself is verified from reported quarters.
     """
-    net = to_float(info.get("profitMargins"))
     operating = to_float(info.get("operatingMargins"))
-    return net is not None and net > 0 and operating is not None and operating < 0
+    return (operating is not None and operating < 0
+            and shows_positive_profit(net_margin(info), _info_eps(info)))
 
 
 def trailing_operating_income(quarterly):
@@ -380,23 +464,51 @@ def trailing_operating_income(quarterly):
 
     ``quarterly`` is an income statement with line items as rows and
     quarter-end dates as columns (yfinance ``quarterly_income_stmt``). Returns
-    None unless all four latest quarters carry a value, so a partial history is
-    never read as a trailing total.
+    None unless the latest four columns are four distinct, consecutive fiscal
+    quarters (each gap within ``QUARTER_GAP_DAYS``) that all carry a value.
+    Four observations spanning a missing quarter are not a trailing total.
     """
+    import pandas as pd
+
     if quarterly is None or "Operating Income" not in getattr(quarterly, "index", ()):
         return None
-    latest = quarterly.loc["Operating Income"].sort_index(ascending=False)
-    values = [to_float(v) for v in latest.iloc[:TTM_QUARTERS]]
-    if len(values) < TTM_QUARTERS or any(v is None or v != v for v in values):
+    line = quarterly.loc["Operating Income"]
+    if hasattr(line, "columns"):
+        return None     # the line item appears twice: ambiguous
+    latest = line.sort_index(ascending=False).iloc[:TTM_QUARTERS]
+    if len(latest) < TTM_QUARTERS:
+        return None
+    values = [to_float(v) for v in latest]
+    if any(v is None or v != v for v in values):
+        return None
+    ends = [pd.Timestamp(label) for label in latest.index]
+    low, high = QUARTER_GAP_DAYS
+    if not all(low <= (a - b).days <= high for a, b in zip(ends, ends[1:])):
         return None
     return sum(values)
+
+
+def checked_operating_income(handle, info, warn, label):
+    """Verified trailing operating income when the check applies, else None.
+
+    The quarterly statement is optional data: a provider failure warns and
+    returns None so the rest of the ticker's refresh (EPS, quote, analyst
+    data, or a whole ``--add`` snapshot) is kept.
+    """
+    if not shows_profit_with_operating_loss(info):
+        return None
+    try:
+        return trailing_operating_income(handle.quarterly_income_stmt)
+    except Exception as ex:
+        warn(f"  [warn] {label} quarterly statement: {ex}")
+        return None
 
 
 # -----------------------------------------------------------------------------
 # yfinance fetch paths
 # -----------------------------------------------------------------------------
-def _close_series(raw, symbol):
-    """Return the Close column for one symbol as a Series, whatever the layout.
+def _symbol_frame(raw, symbol):
+    """The price-field columns for one symbol, whatever the layout, or None.
 
     yfinance returns three column layouts depending on the call:
 
@@ -407,26 +519,49 @@ def _close_series(raw, symbol):
     - flat columns, from older releases.
 
     The layout is detected from the columns actually returned: the MultiIndex
-    level holding ``symbol`` is selected away, leaving price fields. A
-    one-column DataFrame is then reduced to a Series, because under pandas 3 a
-    later ``float()`` on a frame raises and was swallowed into None.
+    level holding ``symbol`` is selected away, leaving price fields. When the
+    symbol is in no level it has no history in this download; returning the
+    frame anyway would hand back another instrument's prices, so it is None.
     """
     columns = raw.columns
-    if columns.nlevels > 1:
-        for level in range(columns.nlevels):
-            if symbol in columns.get_level_values(level):
-                raw = raw.xs(symbol, axis=1, level=level)
-                break
-        else:
-            # The symbol is in no level: it has no history in this download.
-            # Falling through to raw["Close"] would return another
-            # instrument's closes, so report it as empty instead.
-            import pandas as pd
-            return pd.Series(dtype=float)
-    close = raw["Close"]
-    if hasattr(close, "columns"):
-        close = close.iloc[:, 0]
-    return close.dropna()
+    if columns.nlevels == 1:
+        return raw
+    for level in range(columns.nlevels):
+        if symbol in columns.get_level_values(level):
+            return raw.xs(symbol, axis=1, level=level)
+    return None
+
+
+def _field_series(raw, symbol, name):
+    """Return one price field (``Close``, ``High``...) for a symbol as a Series.
+
+    Empty when the symbol or the field is absent. A one-column DataFrame is
+    reduced to a Series, because under pandas 3 a later ``float()`` on a
+    frame raises and was swallowed into None.
+    """
+    import pandas as pd
+
+    frame = _symbol_frame(raw, symbol)
+    if frame is None or name not in frame.columns:
+        return pd.Series(dtype=float)
+    series = frame[name]
+    if hasattr(series, "columns"):
+        series = series.iloc[:, 0]
+    return series.dropna()
+
+
+def _close_series(raw, symbol):
+    """The dividend-adjusted close for one symbol as a Series.
+
+    ``Adj Close`` when the download carries it (the ``auto_adjust=False``
+    daily download), else ``Close`` (already adjusted when
+    ``auto_adjust=True``). Either way moving averages and D5 see the same
+    adjusted closes they always have.
+    """
+    frame = _symbol_frame(raw, symbol)
+    name = ("Adj Close" if frame is not None and "Adj Close" in frame.columns
+            else "Close")
+    return _field_series(raw, symbol, name)
 
 
 def _utc_now(now):
@@ -465,15 +600,15 @@ def fetch_batch(tickers, aliases, rec_map, warn=print, client=None, now=None):
     try:
         symbols = [symbol_for(t) for t in tickers]
 
-        def download(label, window):
+        def download(label, window, auto_adjust=True):
             warn(f"[Live Refresh] Fetching {label} ({len(symbols)} tickers)...")
             with contextlib.redirect_stdout(io.StringIO()):
                 return yf.download(
-                    symbols, auto_adjust=True, progress=False,
+                    symbols, auto_adjust=auto_adjust, progress=False,
                     group_by="ticker", **window
                 )
 
-        raw_daily = download("daily data", DAILY_WINDOW)
+        raw_daily = download("daily data", DAILY_WINDOW, DAILY_AUTO_ADJUST)
         raw_hourly = download("hourly prices", HOURLY_WINDOW)
         raw_monthly = download("monthly data", MONTHLY_WINDOW)
 
@@ -481,6 +616,7 @@ def fetch_batch(tickers, aliases, rec_map, warn=print, client=None, now=None):
             symbol = symbol_for(ticker)
             try:
                 daily = _close_series(raw_daily, symbol)
+                daily_high = _field_series(raw_daily, symbol, "High")
                 hourly = _close_series(raw_hourly, symbol)
                 monthly = _close_series(raw_monthly, symbol)
                 if daily.empty:
@@ -489,12 +625,13 @@ def fetch_batch(tickers, aliases, rec_map, warn=print, client=None, now=None):
 
                 price_source = hourly if not hourly.empty else daily
                 live.prices[ticker] = rounded(price_source.iloc[-1])
-                mas, d5, max_close = series_metrics(daily, monthly, symbol, now)
+                mas, d5, highs = series_metrics(daily, daily_high, monthly,
+                                                symbol, now)
                 live.moving_averages[ticker] = mas
                 if d5 is not None:
                     live.d5[ticker] = d5
-                if max_close is not None:
-                    live.max_close[ticker] = max_close
+                if highs is not None:
+                    live.highs[ticker] = highs
             except Exception as ex:
                 warn(f"  [warn] {ticker}: {ex}")
 
@@ -509,14 +646,6 @@ def fetch_batch(tickers, aliases, rec_map, warn=print, client=None, now=None):
                 live.fundamentals[ticker] = fundamentals_from_info(info)
                 if info.get("currency"):
                     live.currency[ticker] = info["currency"]
-
-                # Earnings quality: positive net income with an operating loss
-                # is confirmed against four reported quarters before it is
-                # recorded (calculations.assess_fundamentals uses it).
-                if shows_profit_with_operating_loss(info):
-                    operating = trailing_operating_income(handle.quarterly_income_stmt)
-                    if operating is not None:
-                        live.operating_income[ticker] = operating
 
                 # yfinance trailingEps is useful but is not Alpha Vantage
                 # independent verification, so provenance is recorded as False.
@@ -537,6 +666,14 @@ def fetch_batch(tickers, aliases, rec_map, warn=print, client=None, now=None):
                 analyst = analyst_from_info(info, rec_map)
                 if analyst:
                     live.analyst[ticker] = analyst
+
+                # Earnings quality: positive profit with an operating loss is
+                # confirmed against four consecutive reported quarters before
+                # it is recorded (calculations.assess_fundamentals uses it).
+                # Last and isolated, so a failure costs nothing fetched above.
+                operating = checked_operating_income(handle, info, warn, ticker)
+                if operating is not None:
+                    live.operating_income[ticker] = operating
             except Exception as ex:
                 warn(f"  [warn] {ticker} fundamentals: {ex}")
 
@@ -567,17 +704,21 @@ class TickerSnapshot:
     fundamentals: tuple
     analyst: tuple
     d5: D5View | None = None
-    max_close: float | None = None
+    highs: object = None                 # completed-session High series, or None
     operating_income: float | None = None
+    low_date: str | None = None          # ISO date of bear_low, from fib_anchors
 
 
 def fetch_ticker(ticker, rec_map, warn=print, client=None, now=None, symbol=None):
     """Fetch one ticker for ``--add``, reusing the shared series computation.
 
-    Price, moving averages, D5 and highest close come from the same windows and
-    the same ``series_metrics`` the batch refresh uses. Only Fib anchor
-    derivation is specific to ``--add``, because portfolio rows carry curated
-    historical anchors instead of deriving them.
+    Price, moving averages, D5 and the High series come from the same windows,
+    the same price basis and the same ``series_metrics`` the batch refresh
+    uses. Only Fib anchor derivation is specific to ``--add``, because
+    portfolio rows carry curated historical anchors instead of deriving them.
+    The anchor history is completed sessions only, split-adjusted and
+    dividend-unadjusted, and the low's date is returned so it can be
+    persisted as ``macro_lo_date``.
 
     ``ticker`` is the portfolio key and is what the snapshot carries.
     ``symbol`` is the provider symbol from ``yahoo_aliases`` (for example
@@ -604,14 +745,18 @@ def fetch_ticker(ticker, rec_map, warn=print, client=None, now=None, symbol=None
         info = handle.info
 
         with contextlib.redirect_stdout(io.StringIO()):
-            raw_daily = yf.download(symbol, auto_adjust=True, progress=False, **DAILY_WINDOW)
+            raw_daily = yf.download(symbol, auto_adjust=DAILY_AUTO_ADJUST,
+                                    progress=False, **DAILY_WINDOW)
             raw_hourly = yf.download(symbol, auto_adjust=True, progress=False, **HOURLY_WINDOW)
             raw_monthly = yf.download(symbol, auto_adjust=True, progress=False, **MONTHLY_WINDOW)
-            anchor_history = handle.history(**ANCHOR_WINDOW)
+            anchor_history = handle.history(auto_adjust=DAILY_AUTO_ADJUST,
+                                            **ANCHOR_WINDOW)
 
         daily = _close_series(raw_daily, symbol)
+        daily_high = _field_series(raw_daily, symbol, "High")
         hourly = _close_series(raw_hourly, symbol)
         monthly = _close_series(raw_monthly, symbol)
+        anchor_history, _intraday = completed_closes(anchor_history, symbol, now)
         if daily.empty or anchor_history.empty:
             warn(f"[--add {ticker}] No price history; skipping.")
             return None
@@ -621,16 +766,16 @@ def fetch_ticker(ticker, rec_map, warn=print, client=None, now=None, symbol=None
             price_source = hourly if not hourly.empty else daily
             price = rounded(price_source.iloc[-1])
 
-        bear_low, cycle_high = fib_anchors(anchor_history)
+        bear_low, cycle_high, low_date = fib_anchors(anchor_history)
         if bear_low is None or cycle_high is None:
             warn(f"[--add {ticker}] Could not derive Fib anchors; skipping.")
             return None
 
-        mas, d5, max_close = series_metrics(daily, monthly, symbol, now)
+        mas, d5, highs = series_metrics(daily, daily_high, monthly, symbol, now)
         # Same earnings-quality pre-filter and reconciliation as fetch_batch,
-        # so --add rows are held to the same rule.
-        operating = (trailing_operating_income(handle.quarterly_income_stmt)
-                     if shows_profit_with_operating_loss(info) else None)
+        # so --add rows are held to the same rule. Isolated: a statement
+        # failure must not discard the snapshot.
+        operating = checked_operating_income(handle, info, warn, f"[--add {ticker}]")
         return TickerSnapshot(
             ticker=ticker,
             name=info.get("longName") or info.get("shortName") or ticker,
@@ -644,8 +789,9 @@ def fetch_ticker(ticker, rec_map, warn=print, client=None, now=None, symbol=None
             fundamentals=fundamentals_from_info(info),
             analyst=analyst_from_info(info, rec_map, default_consensus="Hold"),
             d5=d5,
-            max_close=max_close,
+            highs=highs,
             operating_income=operating,
+            low_date=low_date,
         )
     except Exception as ex:
         warn(f"[--add {ticker}] Failed: {ex}")

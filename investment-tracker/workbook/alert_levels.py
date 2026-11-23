@@ -130,7 +130,8 @@ def _write_header(ws, ctx):
     ws["A2"] = (
         f"v21 | {ctx.run_date} | {ctx.data_source} | {ctx.d5_basis_text()} | "
         "MACRO FIB: anchored to 2022 bear market low to cycle ATH  |  "
-        "Cycle ATH = max(stored ATH, highest close since the anchor low); "
+        "Cycle ATH = max(stored ATH, highest intraday High since the dated "
+        "anchor low; undated lows keep the stored ATH); "
         "amber ATH cell = stored value superseded  |  "
         "BELOW ANCHOR LOW = Fib structure broken  |  "
         "D200 SMA: simple 200-day MA; break below = regime change  |  "
